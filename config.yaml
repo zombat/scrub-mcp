@@ -76,3 +76,10 @@ optimizer:
 # Batching: fewer LLM round trips = lower latency on Apple Silicon
 batch_size: 5              # functions per DSPy call (1 = sequential, no batching)
 deterministic_prefilter: true  # skip functions that already have docstrings/types
+
+# Savings estimator: how much would this have cost to do via cloud API?
+# Set price_per_mtoken to 0 if you're on a flat-rate subscription (Claude Code, etc.)
+# — tokens_saved and calls_saved still show the work S.C.R.U.B. avoided.
+savings:
+  price_per_mtoken: 15.0   # output token price per million tokens in your currency unit
+  currency_unit: USD        # USD, EUR, GBP, credits — just a label

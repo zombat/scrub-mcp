@@ -586,7 +586,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                             "auto_fixed": result.auto_fixed,
                             "remaining_issues": result.remaining_issues,
                             "source": fixed_source,
-                            "savings": estimate_savings(source, result.auto_fixed),
+                            "savings": estimate_savings(source, result.auto_fixed, CONFIG.savings.price_per_mtoken, CONFIG.savings.currency_unit),
                             "telemetry": {
                                 "engine": "Ruff (S.C.R.U.B. internal strict profile)",
                                 "active_rules": CONFIG.ruff.select,
@@ -614,7 +614,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                             "docstrings_added": len(report.docstrings),
                             "functions": [d.function_name for d in report.docstrings],
                             "source": report.modified_source,
-                            "savings": estimate_savings(source, len(report.docstrings)),
+                            "savings": estimate_savings(source, len(report.docstrings), CONFIG.savings.price_per_mtoken, CONFIG.savings.currency_unit),
                         },
                         indent=2,
                     ),
@@ -635,7 +635,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                             "annotations_added": len(report.type_annotations),
                             "functions": [a.function_name for a in report.type_annotations],
                             "source": report.modified_source,
-                            "savings": estimate_savings(source, len(report.type_annotations)),
+                            "savings": estimate_savings(source, len(report.type_annotations), CONFIG.savings.price_per_mtoken, CONFIG.savings.currency_unit),
                         },
                         indent=2,
                     ),
@@ -655,7 +655,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                         {
                             "comments_added": len(report.comments),
                             "source": report.modified_source,
-                            "savings": estimate_savings(source, len(report.comments)),
+                            "savings": estimate_savings(source, len(report.comments), CONFIG.savings.price_per_mtoken, CONFIG.savings.currency_unit),
                         },
                         indent=2,
                     ),
@@ -685,7 +685,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                             "type_annotations_added": len(report.type_annotations),
                             "comments_added": len(report.comments),
                             "source": report.modified_source,
-                            "savings": estimate_savings(source, total_fixes),
+                            "savings": estimate_savings(source, total_fixes, CONFIG.savings.price_per_mtoken, CONFIG.savings.currency_unit),
                             "telemetry": {
                                 "engine": "Ruff (S.C.R.U.B. internal strict profile)",
                                 "active_rules": run_config.ruff.select,
@@ -852,7 +852,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                         "docstrings_added": len(rpt.docstrings),
                         "types_added": len(rpt.type_annotations),
                         "comments_added": len(rpt.comments),
-                        "savings": estimate_savings(file_source, file_fixes),
+                        "savings": estimate_savings(file_source, file_fixes, CONFIG.savings.price_per_mtoken, CONFIG.savings.currency_unit),
                     }
                     if rpt.lint:
                         entry["lint_violations_fixed"] = rpt.lint.auto_fixed
@@ -863,12 +863,16 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                     results.append({"file_path": p, "error": str(exc)})
 
             total_tokens_saved = sum(r.get("savings", {}).get("tokens_saved", 0) for r in results if "savings" in r)
-            total_cost_usd = sum(r.get("savings", {}).get("est_cost_usd", 0.0) for r in results if "savings" in r)
+            total_est_cost = sum(r.get("savings", {}).get("est_cost", 0.0) for r in results if "savings" in r)
             return [TextContent(
                 type="text",
                 text=json.dumps({
                     "files_processed": len(results),
-                    "aggregate_savings": {"tokens_saved": total_tokens_saved, "est_cost_usd": round(total_cost_usd, 4)},
+                    "aggregate_savings": {
+                        "tokens_saved": total_tokens_saved,
+                        "est_cost": round(total_est_cost, 4),
+                        "currency": CONFIG.savings.currency_unit,
+                    },
                     "results": results,
                 }, indent=2),
             )]
@@ -930,7 +934,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                         {
                             "simplifications": results,
                             "functions_analyzed": len(results),
-                            "savings": estimate_savings(source, fixes),
+                            "savings": estimate_savings(source, fixes, CONFIG.savings.price_per_mtoken, CONFIG.savings.currency_unit),
                         },
                         indent=2,
                     ),
@@ -1033,7 +1037,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                             "test_count": test_count,
                             "functions_covered": covered,
                             "test_code": combined_code,
-                            "savings": estimate_savings(source, test_count),
+                            "savings": estimate_savings(source, test_count, CONFIG.savings.price_per_mtoken, CONFIG.savings.currency_unit),
                         },
                         indent=2,
                     ),
@@ -1097,7 +1101,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                         {
                             "functions_analyzed": len(results),
                             "refactoring": results,
-                            "savings": estimate_savings(source, fixes),
+                            "savings": estimate_savings(source, fixes, CONFIG.savings.price_per_mtoken, CONFIG.savings.currency_unit),
                         },
                         indent=2,
                     ),
@@ -1207,7 +1211,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                             "rewrite": triage_results["rewrite"],
                             "nosec": triage_results["nosec"],
                             "accept_risk": triage_results["accept_risk"],
-                            "savings": estimate_savings(source, fixes),
+                            "savings": estimate_savings(source, fixes, CONFIG.savings.price_per_mtoken, CONFIG.savings.currency_unit),
                         },
                         indent=2,
                     ),

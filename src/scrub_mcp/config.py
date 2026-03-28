@@ -100,11 +100,25 @@ class OptimizerConfig(BaseModel):
     )
 
 
+class SavingsConfig(BaseModel):
+    """Cloud cost savings estimation settings."""
+
+    price_per_mtoken: float = Field(
+        default=15.0,
+        description="Cloud API output token price in your chosen currency unit, per million tokens.",
+    )
+    currency_unit: str = Field(
+        default="USD",
+        description="Label for the monetary unit shown in est_cost (e.g. USD, EUR, credits).",
+    )
+
+
 class PipelineConfig(BaseModel):
     """Full pipeline configuration."""
 
     model: ModelConfig = Field(default_factory=ModelConfig)
     ruff: RuffConfig = Field(default_factory=RuffConfig)
+    savings: SavingsConfig = Field(default_factory=SavingsConfig)
     comments: CommentConfig = Field(default_factory=CommentConfig)
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
     docstring_style: str = "google"
