@@ -1,0 +1,284 @@
+Metadata-Version: 2.4
+Name: scrub
+Version: 0.1.0
+Summary: DSPy-powered code hygiene pipeline over MCP
+Author-email: Raymond Andrew Rizzo <ray@raymondrizzo.com>
+License: MIT
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: dspy>=2.5
+Requires-Dist: mcp>=1.0
+Requires-Dist: ruff>=0.8
+Requires-Dist: pydantic>=2.0
+Requires-Dist: pyyaml>=6.0
+Provides-Extra: security
+Requires-Dist: bandit>=1.7; extra == "security"
+Provides-Extra: prefilter
+Requires-Dist: pyright; extra == "prefilter"
+Requires-Dist: pydocstyle>=6.3; extra == "prefilter"
+Requires-Dist: pydocstyle[toml]; extra == "prefilter"
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+Requires-Dist: pyright; extra == "dev"
+Requires-Dist: pydocstyle>=6.3; extra == "dev"
+Requires-Dist: bandit>=1.7; extra == "dev"
+Provides-Extra: all
+Requires-Dist: scrub[prefilter,security]; extra == "all"
+
+# S.C.R.U.B.
+
+**Source Code Review, Uplift, and Baselining**
+
+A 16-tool MCP server that cuts cloud LLM token usage on code quality tasks. Deterministic tools handle what they can. A local LLM (via DSPy) handles the rest. Cloud models plan and review. Nothing else.
+
+```
+Cloud LLM (plan) ──> S.C.R.U.B. MCP Server ──> Cloud LLM (review)
+                          │
+              ┌───────────┼───────────┐
+              ▼           ▼           ▼
+        Deterministic   DSPy +     Security +
+        (Ruff, AST,    Local LLM   Supply Chain
+         pyright)     (Qwen Coder)  (Bandit, OSV)
+```
+
+## Why
+
+Cloud LLMs waste tokens on boilerplate. Docstrings, type annotations, linting fixes, test stubs: these are high-volume, low-reasoning tasks that eat your context window and your budget. When the context gets long, the model gets lazy. It half-writes docstrings. It skips the 47th function. It "summarizes" instead of generating.
+
+S.C.R.U.B. moves that work to a local pipeline where compute is virtually free, quality is consistent, and every function gets the same pass whether it's the first or the last.
+
+## Architecture
+
+**Deterministic-first.** Every task hits deterministic tools before the LLM sees it. Ruff handles linting. pyright validates types. pydocstyle checks docstring style. AST analysis computes complexity. Bandit scans for vulnerabilities. If the deterministic tool says the code already passes, the LLM never fires. Zero tokens spent.
+
+**Three-tier pre-filter.** Tier 1 (AST): is the docstring/annotation physically present? Tier 2 (pydocstyle/pyright): does the existing artifact pass quality checks? Tier 3 (only failures): send to the local LLM. Each tier is gated to its step. Ask for `--steps lint` and no pre-filter runs for docstrings.
+
+**Batched DSPy calls.** Instead of one LLM call per function, S.C.R.U.B. packs 5 functions into a single prompt (configurable `batch_size`). A file with 30 functions goes from 60 round trips to 12.
+
+**Teacher-student optimization.** Use Claude (or any large model) as a teacher to compile optimized prompts for your local student model. One-time cloud cost during setup. Zero cloud cost at runtime. The compiled prompts live in `.dspy_cache/` and the health checker flags when they go stale.
+
+## The 16 Tools
+
+### Code Hygiene
+
+| Tool | LLM? | What it does |
+|------|------|-------------|
+| `lint_file` | No | Ruff lint + autofix |
+| `generate_docstrings` | Batched | Google-style, all files/classes/methods/functions |
+| `annotate_types` | Batched | All args + all returns, no exceptions |
+| `add_comments` | Gated | Only fires on complex functions (cyclomatic/cognitive threshold) |
+| `hygiene_full` | Mixed | Full pipeline: lint, docstrings, types, comments |
+
+### Coding Tools
+
+| Tool | LLM? | What it does |
+|------|------|-------------|
+| `analyze_complexity` | No | Cyclomatic + cognitive complexity, nesting depth, hotspots |
+| `suggest_simplifications` | Yes | Concrete refactoring: early returns, guard clauses, extract function |
+| `optimize_imports` | Mixed | Ruff removes unused, DSPy infers missing imports |
+| `generate_tests` | Batched | pytest stubs: happy path, edge cases, parametrize |
+| `find_dead_code` | No | Unreachable code, unused vars, redundant else, commented blocks |
+| `suggest_refactoring` | Yes | Extract function candidates, rename suggestions |
+
+### Security + Supply Chain
+
+| Tool | LLM? | What it does |
+|------|------|-------------|
+| `security_scan` | No | Bandit static analysis: hardcoded secrets, injection, weak crypto |
+| `security_remediate` | Yes | Triage-first: rewrite, `# nosec` with justification, or accept risk |
+| `generate_sbom` | No | CycloneDX 1.5 / SPDX 2.3 from pip, pyproject, lock files |
+| `scan_vulnerabilities` | No | Cross-reference PURLs against OSV.dev (PyPI, GHSA, NVD) |
+
+One more tool slot reserved for the DSPy core telemetry contribution (OpenTelemetry + AI/ML-BOM).
+
+## Quick Start
+
+### Install
+
+```bash
+pip install scrub
+pip install scrub[security]     # adds Bandit
+pip install scrub[prefilter]    # adds pyright + pydocstyle
+pip install scrub[all]          # everything
+```
+
+### LLM Considerations
+
+When using Ollama, how a model fits into your memory determines how it performs:
+
+- Fully in VRAM: Blazing fast (30–50+ tokens/second). Perfect for real-time chat and IDE tab-autocomplete.
+- Split between GPU and System RAM: Noticeably slower (2–10 tokens/second), as your CPU has to process the overflow. Great for complex problems where you don't mind waiting a few seconds.
+
+**1. The Sweet Spot: Best Overall *(Fits entirely in VRAM)***
+
+If you want a model that is smart, handles complex logic, and replies instantly, you want a 7B–8B parameter model.
+
+- Top Pick: Qwen 2.5 Coder (7B)
+    - Why: It is currently the undisputed heavyweight champion of small coding models. It punches way above its weight, routinely beating many older 30B+ models on benchmarks. At 4.7GB (with Ollama's default quantization), it fits entirely in a 4060 8GB GPU while leaving over 3GB of VRAM open for a massive context window (perfect for pasting in multiple large files).
+    - Command: ollama run qwen2.5-coder:7b
+- Runner Up: Llama 3.1 (8B)
+    - Why: A fantastic generalist. If you want a model that writes good code but is also excellent at writing documentation, drafting emails, or brainstorming architecture, this is highly reliable.
+    - Command: ollama run llama3.1
+
+**2. The Autocomplete Champs *(For IDE Integration)***
+
+If you are using an IDE extension (like Continue.dev, Cline, or Roo) for background "tab-autocomplete" as you type, you need a model that can generate tokens in milliseconds. The 7B models can sometimes be just a fraction of a second too slow for a seamless typing experience.
+
+- Top Pick: Qwen 2.5 Coder (1.5B or 3B)
+    - Why: It takes up barely any VRAM (~1GB to 2GB), leaving your GPU free for your OS, browser, or running a secondary chat model simultaneously. It is trained specifically for Fill-In-the-Middle (FIM) tasks, making it lightning-fast for predicting the next few lines of code.
+    - Command: ollama run qwen2.5-coder:1.5b
+
+**3. The Heavy Lifters *(64GB+ System RAM)***
+
+If you have 64GB+ of system RAM, you can comfortably run massive, frontier-level models. Ollama will automatically load as much of the model as possible to the GPU and seamlessly offload the rest to your CPU. It will be slower, but it will be incredibly smart.
+
+- Top Pick: Qwen 2.5 Coder (32B)
+    - Why: This model rivals proprietary cloud models like GPT-4o and Claude 3.5 Sonnet on coding benchmarks. It's a ~20GB file, so it will lean heavily on your system RAM. Pull this out when you have a difficult architectural problem or an obscure bug, and are willing to wait 10–20 seconds for the code generation to finish.
+    - Command: ollama run qwen2.5-coder:32b
+- Runner Up: DeepSeek R1 (14B)
+    - Why: This is a "reasoning" model (similar to OpenAI's o1). It will generate an internal chain-of-thought to "think" through complex logic problems before outputting the final code. At 14B, it will only spill over your VRAM slightly (taking ~9GB total), meaning your CPU won't bottleneck it too severely.
+    - Command: ollama run deepseek-r1:14b
+
+### Configure
+
+```yaml
+# config.yaml
+model:
+  provider: ollama
+  model: qwen2.5-coder:14b
+  base_url: http://localhost:11434
+  max_tokens: 4096
+  temperature: 0.1
+
+batch_size: 5
+deterministic_prefilter: true
+```
+
+### Connect to Claude Code
+
+```json
+{
+  "mcpServers": {
+    "scrub": {
+      "command": "python",
+      "args": ["-m", "scrub.mcp.server"]
+    }
+  }
+}
+```
+
+### Connect to VS Code
+
+Same config. S.C.R.U.B. speaks MCP over stdio. Any MCP client works.
+
+## Optimization
+
+Training examples ship with the package (`scrub/examples/`). No setup required — just run the optimizer.
+
+### Self-teach (local only, free)
+
+```bash
+python -m scrub.optimizers.tune
+```
+
+### Teacher-student (one-time cloud cost, better results)
+
+```bash
+python -m scrub.optimizers.tune --teacher --teacher-model claude-sonnet-4-20250514
+```
+
+### Per-module strategy
+
+| Module | Strategy | Rationale |
+|--------|----------|-----------|
+| docstrings, types, comments | BootstrapFewShot | Style matching, Qwen handles it well |
+| imports, dead_code | BootstrapFewShotWithRandomSearch | Needs variety in examples |
+| complexity, tests, refactoring | MIPROv2 | Prompt wording drives output quality |
+
+### Calibrated LLM-as-judge
+
+MIPROv2 modules use a two-tier metric: 40% structural checks (JSON valid, required fields, style markers) + 60% teacher-as-judge (Claude evaluates Qwen's output against calibrated rubrics with grounded score anchors). Edit `.dspy_cache/judge_calibration.json` to tune the judge to your standards.
+
+### Cache health
+
+```bash
+# Quick check
+python -m scrub.optimizers.health
+
+# CI gate (non-zero exit if stale)
+python -m scrub.optimizers.health --threshold 0.7
+
+# Just the heavy modules
+python -m scrub.optimizers.health --modules complexity,tests
+```
+
+Model fingerprints detect drift when you upgrade Qwen. The health checker tells you exactly which modules to recompile.
+
+### Generating more training examples
+
+The bundled examples cover 15 domains. To generate additional ones using Claude:
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-... python scripts/gen_examples.py --count 10
+```
+
+Each topic produces three files: `{topic}_messy.py` (undocumented input), `{topic}_clean.py` (fully annotated ground truth), and `{topic}_test.py` (pytest tests). By default, output goes to `src/scrub/examples/` so new examples can be committed and shipped with the package.
+
+```bash
+# Specific topics
+python scripts/gen_examples.py --topics retry_backoff,rate_limiter,event_bus
+
+# Custom output directory
+python scripts/gen_examples.py --output-dir ./my-examples
+python -m scrub.optimizers.tune --examples-dir ./my-examples
+```
+
+## Project Structure
+
+```
+src/scrub/
+  config.py              # Pydantic config: model, ruff, optimizer, batch, prefilter
+  models.py              # All I/O models (Pydantic)
+  pipeline.py            # Orchestrator: deterministic-first, batched, gated
+  examples/              # Bundled training examples (ships with pip install)
+    {topic}_messy.py     # Undocumented input
+    {topic}_clean.py     # Fully annotated ground truth
+    {topic}_test.py      # pytest tests
+  mcp/
+    server.py            # 16-tool MCP server (stdio)
+  modules/
+    signatures.py        # DSPy signatures: hygiene tasks
+    hygiene.py           # DSPy modules: docstrings, types, comments (single + batch)
+    coding_signatures.py # DSPy signatures: coding + security tasks
+    coding_tools.py      # DSPy modules: complexity, tests, refactoring, security triage
+  tools/
+    parser.py            # AST extraction: functions, classes, modules, complexity
+    linter.py            # Ruff wrapper
+    rewriter.py          # Source rewriter: apply docstrings, types back to source
+    utils.py             # Pre-filters (pyright, pydocstyle), batching
+    complexity.py        # Cyclomatic + cognitive complexity analyzer
+    dead_code.py         # Unreachable code, unused vars, commented blocks
+    imports.py           # Import optimizer (Ruff + AST)
+    security.py          # Bandit wrapper
+    sbom.py              # CycloneDX 1.5 / SPDX 2.3 generator
+    vulnscan.py          # OSV.dev vulnerability scanner
+  optimizers/
+    tune.py              # Per-module optimizer: teacher-student, calibrated judge
+    health.py            # Cache staleness detection + model fingerprinting
+scripts/
+  gen_examples.py        # Generate training example triplets using Claude API
+```
+
+## The ROI
+
+By inserting S.C.R.U.B. into the Claude Code (or any MCP client) workflow, you cut cloud token usage on every generation loop. The local pipeline doesn't get lazy on function 47. It doesn't skip the boring parts to save tokens. It runs the same quality pass on every function, every class, every file.
+
+What comes out the other side isn't generic boilerplate. It's a fully documented, typed, linted, security-scanned, SBOM-tracked codebase from the first prompt. Not a replacement for your GRC stack, but a strong addition that generates its own compliance evidence.
+
+## License
+
+MIT
+
+## Author
+
+Raymond Andrew Rizzo

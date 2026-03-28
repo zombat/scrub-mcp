@@ -1,0 +1,128 @@
+
+# MCP Tools
+
+This file provides an overview of the various tools available in the MCP (Meta-Code-Programming) toolkit. Each tool is designed to analyze and improve code quality through a combination of deterministic analysis and AI-powered suggestions.
+
+## Tools Overview
+
+Below is a detailed description of each tool, its purpose, and its key features.
+
+---
+
+### Complexity Analyzer
+
+*   **File:** `src/scrub_mcp/tools/complexity.py`
+*   **Description:** This tool analyzes the complexity of Python functions using both deterministic metrics and AI-powered suggestions. It helps identify functions that are difficult to understand, maintain, and test.
+*   **Features:**
+    *   **Cyclomatic Complexity:** Measures the number of linearly independent paths through a function's source code.
+    *   **Cognitive Complexity:** Measures the mental effort required to understand a function's control flow.
+    *   **Function Length:** Counts the number of lines in a function's body.
+    *   **Nesting Depth:** Determines the maximum level of nested control structures.
+    *   **Parameter Count:** Counts the number of parameters in a function's signature.
+    *   **AI-Powered Suggestions:** Provides concrete suggestions for simplifying complex functions using a local LLM (DSPy).
+
+---
+
+### Dead Code Detector
+
+*   **File:** `src/scrub_mcp/tools/dead_code.py`
+*   **Description:** This tool identifies and flags dead or unreachable code within a Python source file. It uses deterministic AST (Abstract Syntax Tree) analysis to find code that is no longer in use.
+*   **Features:**
+    *   **Unreachable Code:** Finds code that appears after `return`, `raise`, `break`, or `continue` statements.
+    *   **Unused Variables:** Detects variables that are assigned a value but never used.
+    *   **Redundant `else` Blocks:** Identifies `else` blocks that are unnecessary because the preceding `if` block always returns or raises an exception.
+    *   **Commented-Out Code:** Uses heuristics to find blocks of commented-out code that can be safely removed.
+
+---
+
+### Import Optimizer
+
+*   **File:** `src/scrub_mcp/tools/imports.py`
+*   **Description:** This tool analyzes and optimizes `import` statements in Python files. It uses a combination of deterministic analysis (Ruff) and AI-powered inference to ensure that imports are clean, sorted, and complete.
+*   **Features:**
+    *   **Unused Import Detection:** Finds and removes imported modules and names that are never used in the code (using Ruff's `F401` rule).
+    *   **Import Sorting:** Automatically sorts `import` statements according to the `isort` standard (using Ruff's `I` rule).
+    *   **Missing Import Inference:** Infers missing `import` statements from the code's usage patterns using a local LLM (DSPy).
+    *   **Autoflake Integration:** Uses `autoflake` to remove unused imports and variables.
+
+---
+
+### Linter
+
+*   **File:** `src/scrub_mcp/tools/linter.py`
+*   **Description:** This tool serves as a wrapper for the `Ruff` linter, a fast and powerful Python linter. It provides a deterministic-first approach to code quality, with no LLM involvement.
+*   **Features:**
+    *   **Ruff Integration:** Leverages the speed and extensive rule set of the Ruff linter.
+    *   **Auto-Fixing:** Automatically fixes a wide range of linting errors.
+    *   **Configurable:** Allows for custom configuration of Ruff's rules, including selected rules, ignored rules, and line length.
+    *   **Violation Reporting:** Reports the number of violations before and after fixing, as well as a list of remaining issues.
+
+---
+
+### Parser
+
+*   **File:** `src/scrub_mcp/tools/parser.py`
+*   **Description:** This tool uses the `ast` module to parse Python source code and extract detailed information about its structure, including modules, classes, and functions.
+*   **Features:**
+    *   **Module Information:** Extracts module-level docstrings, imports, and top-level names.
+    *   **Class Information:** Extracts class names, base classes, methods, docstrings, and decorators.
+    *   **Function Information:** Extracts function names, signatures, bodies, decorators, docstrings, and annotations.
+    *   **Cyclomatic Complexity:** Calculates a rough cyclomatic complexity for each function to help target comments and refactoring efforts.
+
+---
+
+### Rewriter
+
+*   **File:** `src/scrub_mcp/tools/rewriter.py`
+*   **Description:** This tool applies the outputs of AI-powered analysis (DSPy) back into the Python source code. It uses the `ast` module to make precise and safe modifications to the code.
+*   **Features:**
+    *   **Docstring Generation:** Inserts or replaces module, class, and function docstrings.
+    *   **Type Annotation:** Adds type annotations to function parameters and return values that are currently unannotated.
+    *   **AST-Based Modifications:** Ensures that all changes are syntactically correct and preserve the original code structure.
+
+---
+
+### SBOM Generator
+
+*   **File:** `src/scrub_mcp/tools/sbom.py`
+*   **Description:** This tool generates a Software Bill of Materials (SBOM) for a Python project. It gathers dependency information from various sources and formats it into standard SBOM formats like CycloneDX and SPDX.
+*   **Features:**
+    *   **Multiple Data Sources:** Extracts dependencies from `pip freeze`, `pyproject.toml`, `requirements.txt`, and various lock files (`poetry.lock`, `Pipfile.lock`, `uv.lock`).
+    *   **Standard Formats:** Supports both CycloneDX 1.5 (JSON) and SPDX 2.3 (JSON) formats.
+    *   **Deterministic:** Operates purely on metadata extraction and formatting, with no LLM involvement.
+    *   **Comprehensive Reports:** Provides a complete list of all project dependencies, their versions, and their sources.
+
+---
+
+### Security Scanner
+
+*   **File:** `src/scrub_mcp/tools/security.py`
+*   **Description:** This tool is a wrapper for the `Bandit` static analysis security scanner. It identifies common security vulnerabilities in Python code in a deterministic manner.
+*   **Features:**
+    *   **Bandit Integration:** Leverages the `Bandit` tool to find a wide range of security issues, such as hardcoded passwords, SQL injection, and insecure deserialization.
+    *   **Configurable Thresholds:** Allows for setting severity and confidence thresholds to filter the results.
+    *   **Test Skipping:** Supports skipping specific Bandit tests.
+    *   **Detailed Reports:** Provides a detailed report of all findings, including severity, confidence, line number, and a description of the issue.
+
+---
+
+### Vulnerability Scanner
+
+*   **File:** `src/scrub_mcp/tools/vulnscan.py`
+*   **Description:** This tool scans a project's dependencies for known vulnerabilities by cross-referencing them with the OSV.dev (Open Source Vulnerability) database.
+*   **Features:**
+    *   **OSV.dev Integration:** Queries the OSV.dev API, which aggregates data from multiple sources, including the PyPI Advisory Database, GitHub Security Advisories (GHSA), and the National Vulnerability Database (NVD).
+    *   **SBOM-Based Scanning:** Uses the project's SBOM to identify all dependencies and their versions.
+    *   **Actionable Reports:** Provides a report of all vulnerabilities, including CVE/GHSA IDs, severity (CVSS), affected version ranges, and recommended upgrade paths.
+    *   **Batch Processing:** Uses the OSV.dev batch endpoint for efficient querying of large numbers of dependencies.
+
+---
+
+### Savings Estimator
+
+*   **File:** `src/scrub_mcp/tools/savings.py`
+*   **Description:** This tool estimates the cost savings achieved by using S.C.R.U.B. locally instead of relying on a cloud-based LLM.
+*   **Features:**
+    *   **Token Savings Calculation:** Estimates the number of tokens saved based on the size of the processed source file.
+    *   **API Call Savings Calculation:** Estimates the number of API calls saved based on the number of fixes applied.
+    *   **Cost Estimation:** Calculates the estimated cost savings in USD based on the token savings and a configurable price per million tokens.

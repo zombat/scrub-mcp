@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scrub-mcp"
+version = "0.1.0"
+description = "DSPy-powered code hygiene pipeline over MCP"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Raymond Andrew Rizzo", email = "ray@raymondrizzo.com"}
+]
+dependencies = [
+    "dspy>=2.5",
+    "mcp>=1.0",
+    "ruff>=0.8",
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+security = [
+    "bandit>=1.7",
+]
+prefilter = [
+    "pyright",
+    "pydocstyle>=6.3",
+    "pydocstyle[toml]",
+]
+dev = [
+    "pytest>=8.0",
+    "pyright",
+    "pydocstyle>=6.3",
+    "bandit>=1.7",
+]
+all = [
+    "scrub-mcp[security,prefilter]",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+scrub_mcp = ["examples/*.py"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

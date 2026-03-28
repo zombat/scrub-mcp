@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "scrub": {
+      "command": "/home/noot/scrub/.venv/bin/python3",
+      "args": ["-m", "scrub_mcp.mcp.server"]
+    }
+  }
+}

@@ -1,0 +1,78 @@
+# dspy-code-hygiene configuration
+# ================================
+# Default: Qwen 2.5 Coder 14B via Ollama, Google-style everything.
+
+model:
+  provider: ollama
+  model: qwen2.5-coder:7b
+  base_url: http://localhost:11434
+  max_tokens: 4096
+  temperature: 0.1
+
+ruff:
+  fix: true
+  select:
+    - E    # pycodestyle errors
+    - F    # pyflakes
+    - W    # pycodestyle warnings
+    - I    # isort
+    - UP   # pyupgrade
+    - ANN  # flake8-annotations (flag missing types)
+    - D    # pydocstyle (flag missing docstrings)
+  ignore:
+    - ANN101  # self doesn't need annotation
+    - ANN102  # cls doesn't need annotation
+    - D100    # module docstring handled by DSPy, not Ruff
+  line_length: 100
+
+comments:
+  min_lines: 8             # functions shorter than this skip comments
+  min_cyclomatic_complexity: 3  # complexity below this skips comments
+  skip_trivial: true       # skip obvious one-liner functions
+
+# Coverage: everything gets touched
+docstring_style: google
+skip_private: false
+skip_dunder: false
+docstring_all_classes: true
+docstring_all_modules: true
+type_all_args: true
+type_all_returns: true
+
+optimizer_cache_dir: ~/.local/share/dspy_code_hygiene/cache
+
+# Per-module optimizer strategy
+# bootstrap     = fast, selects best few-shot examples (minutes)
+# bootstrap_rs  = moderate, random search over example combos (tens of minutes)
+# mipro         = thorough, rewrites instructions + examples (hours on local)
+optimizer:
+  # Teacher-student: compile with a big model, run on local Qwen
+  # Teacher generates better prompts than Qwen can self-discover.
+  # One-time cloud cost during optimization, zero cloud cost at runtime.
+  use_teacher: false           # flip to true to use teacher model
+  teacher:
+    provider: anthropic
+    model: claude-sonnet-4-20250514
+    base_url: https://api.anthropic.com
+    max_tokens: 4096
+    temperature: 0.0
+
+  # Per-module strategy
+  docstrings: bootstrap        # style matching, Qwen handles this well
+  types: bootstrap             # structural task, few-shot is enough
+  comments: bootstrap          # style matching
+  complexity: mipro            # prompt wording matters for good suggestions
+  tests: mipro                 # needs creative test case generation
+  refactoring: mipro           # nuanced, benefits from instruction rewriting
+  imports: bootstrap_rs        # moderate complexity, needs variety
+  dead_code: bootstrap_rs      # moderate complexity
+
+  # Hyperparameters
+  mipro_auto: light            # optimization budget: light, medium, heavy
+  bootstrap_max_demos: 4       # few-shot examples per module
+  bootstrap_rs_trials: 10      # random search iterations
+  num_threads: 1               # bump for cloud teacher or multi-GPU
+
+# Batching: fewer LLM round trips = lower latency on Apple Silicon
+batch_size: 5              # functions per DSPy call (1 = sequential, no batching)
+deterministic_prefilter: true  # skip functions that already have docstrings/types

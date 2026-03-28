@@ -1,0 +1,48 @@
+{
+  "docstrings": {
+    "__init__": "Initialize the LogParser.\n\nArgs:\n    log_dir: Path to the directory containing log files.\n    patterns: Mapping of pattern names to regex strings.\n        Defaults to an empty dict if not provided.",
+    "parse_file": "Parse a log file and extract entries matching configured patterns.\n\nArgs:\n    filename: Name of the log file to parse, relative to log_dir.\n\nReturns:\n    List of dicts, each containing line number, pattern name,\n    match text, severity, and surrounding context lines.\n\nRaises:\n    FileNotFoundError: If the specified log file does not exist.",
+    "get_summary": "Summarize parsed results by severity and pattern.\n\nArgs:\n    results: List of parsed log entries from parse_file.\n\nReturns:\n    Dict with total count, by_severity counts, and by_pattern counts.",
+    "find_anomalies": "Detect anomalous patterns using z-score analysis.\n\nArgs:\n    entries: List of parsed log entries.\n    threshold: Number of standard deviations above mean to flag.\n        Defaults to 3.\n\nReturns:\n    List of anomaly dicts sorted by z_score descending, each\n    containing pattern name, count, and z_score."
+  },
+  "types": {
+    "__init__": {
+      "log_dir": "str | Path",
+      "patterns": "dict[str, str] | None",
+      "return": "None"
+    },
+    "parse_file": {
+      "filename": "str",
+      "return": "list[dict[str, Any]]"
+    },
+    "get_summary": {
+      "results": "list[dict[str, Any]]",
+      "return": "dict[str, Any]"
+    },
+    "find_anomalies": {
+      "entries": "list[dict[str, Any]]",
+      "threshold": "int",
+      "return": "list[dict[str, Any]]"
+    }
+  },
+  "tests": {
+    "find_anomalies": "import pytest\nfrom sample_messy import find_anomalies\n\n\ndef test_find_anomalies_empty():\n    assert find_anomalies([]) == []\n\n\ndef test_find_anomalies_no_outliers():\n    entries = [{\"pattern\": \"a\"}, {\"pattern\": \"b\"}, {\"pattern\": \"c\"}]\n    assert find_anomalies(entries) == []\n\n\ndef test_find_anomalies_with_outlier():\n    entries = [{\"pattern\": \"a\"}] * 100 + [{\"pattern\": \"b\"}]\n    result = find_anomalies(entries, threshold=1)\n    assert len(result) >= 1\n    assert result[0][\"pattern\"] == \"a\"\n    assert result[0][\"z_score\"] > 0"
+  },
+  "simplifications": {
+    "parse_file": [
+      {
+        "kind": "extract_function",
+        "description": "Extract severity classification into a standalone _classify_severity(line) helper",
+        "target_lines": [23, 23],
+        "suggested_code": "def _classify_severity(line: str) -> str:\n    lower = line.lower()\n    if 'error' in lower:\n        return 'error'\n    if 'warn' in lower:\n        return 'warning'\n    return 'info'",
+        "impact": "medium"
+      },
+      {
+        "kind": "extract_function",
+        "description": "Extract match entry building into _build_entry to reduce nesting in the inner loop",
+        "target_lines": [24, 33],
+        "impact": "high"
+      }
+    ]
+  }
+}

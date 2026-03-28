@@ -1,0 +1,85 @@
+{
+  "_meta": {
+    "description": "Judge calibration rubrics for dspy-code-hygiene. Edit the anchors to match YOUR quality standards. The judge uses these to ground its 0.0-1.0 scoring so it aligns with what you consider good code.",
+    "version": "1.0",
+    "calibrated_by": "Ray Rizzo",
+    "last_updated": "2026-03-28"
+  },
+
+  "docstring": {
+    "rubric": "Weighted criteria:\n  0.30 - Correctness: accurately describes what the function does\n  0.25 - Completeness: every parameter documented, return value described, exceptions listed\n  0.20 - Style: Google format (Args/Returns/Raises), Oxford commas, no em dashes\n  0.15 - Conciseness: no filler, no restating the function name as the summary\n  0.10 - Usefulness: would a new developer understand the function from the docstring alone?",
+    "style_rules": "- Google style docstrings only (Args, Returns, Raises sections)\n- Oxford commas in all lists\n- No em dashes anywhere (use commas, parentheses, or separate sentences)\n- First line is a verb phrase summarizing the function (not the function name)\n- Args entries include type in description only if not annotated\n- One blank line between sections",
+    "anchors": {
+      "0.3": "A one-line docstring that just restates the function name: 'Parse the file.' No Args, no Returns, no Raises.",
+      "0.5": "Has an Args section but misses one parameter, no Returns section. Summary is okay but generic.",
+      "0.7": "Complete Args and Returns sections, all params documented, Google style. Summary could be more specific. Minor style issues (missing Oxford comma).",
+      "0.9": "Every param documented with clear descriptions, Returns explains the structure, Raises lists specific exceptions with when they occur. Summary is a precise verb phrase. Perfect style.",
+      "0.95": "All of 0.9, plus the docstring helps you understand the function without reading the implementation. Descriptions include value ranges, edge case behavior, and default explanations."
+    }
+  },
+
+  "type_annotation": {
+    "rubric": "Weighted criteria:\n  0.40 - Correctness: types accurately reflect runtime behavior\n  0.25 - Completeness: every parameter and return value annotated\n  0.20 - Precision: uses specific types (list[str]) not overly broad (Any)\n  0.15 - Style: lowercase generics, union syntax (str | None not Optional[str])",
+    "style_rules": "- Lowercase generics: list[str] not List[str]\n- Union syntax: str | None not Optional[str]\n- Never use Any unless truly unconstrained\n- Use specific collection types: dict[str, int] not dict\n- Path | str for filesystem arguments\n- Return None explicitly, never omit return type",
+    "anchors": {
+      "0.3": "Only 'return' annotated, all params bare. Uses capital List instead of list.",
+      "0.5": "Most params annotated but one is 'Any' when it should be 'list[str]'. Return type correct.",
+      "0.7": "All params and return annotated. Types are correct. Minor style: uses Optional instead of union.",
+      "0.95": "Every type is precise and correct. Uses lowercase generics, union syntax, specific collection types. Could serve as the ground truth."
+    }
+  },
+
+  "test_generation": {
+    "rubric": "Weighted criteria:\n  0.30 - Correctness: tests would actually pass against the implementation\n  0.25 - Coverage: happy path, edge cases (empty, None, boundary), error cases\n  0.20 - Assertions: meaningful asserts that verify behavior, not just 'doesn't crash'\n  0.15 - Structure: proper use of parametrize, fixtures, descriptive test names\n  0.10 - Independence: tests don't depend on each other or external state",
+    "style_rules": "- Test names: test_<function>_<scenario> (e.g., test_parse_file_empty_input)\n- Use assert statements, not unittest-style assertEqual\n- pytest.raises for expected exceptions\n- @pytest.mark.parametrize for multiple inputs to same logic\n- Fixtures for complex setup, not inline construction\n- No mocking unless necessary for external dependencies",
+    "anchors": {
+      "0.3": "Single test function, just calls the function and asserts it doesn't raise. No edge cases. Generic name like 'test_function'.",
+      "0.5": "Happy path test with a real assertion. One edge case. Test names are descriptive. Missing error case testing.",
+      "0.7": "Happy path, 2-3 edge cases (empty, None), one error case with pytest.raises. Parametrize for the happy path. All assertions are meaningful.",
+      "0.9": "Comprehensive: happy path with parametrize, all edge cases (empty, None, boundary values, type mismatches), error cases with specific exception types. Fixtures for setup. Tests are independent.",
+      "0.95": "All of 0.9, plus tests document the function's contract. Reading the tests tells you exactly what the function does, including corner cases the docstring doesn't mention."
+    }
+  },
+
+  "complexity_reduction": {
+    "rubric": "Weighted criteria:\n  0.35 - Correctness: suggested refactoring preserves original behavior\n  0.25 - Impact: would this actually reduce complexity (fewer branches, less nesting)?\n  0.20 - Practicality: suggestion is specific enough to implement directly\n  0.10 - Code quality: suggested code follows style rules\n  0.10 - Prioritization: high-impact suggestions ranked first",
+    "style_rules": "- Guard clauses over nested if/else (early return pattern)\n- Lookup tables over long if/elif chains\n- Extract function when a block has a clear single responsibility\n- Never suggest extractions for 2-line blocks that only run once\n- Suggested code must be syntactically valid Python\n- Preserve all error handling in refactored code",
+    "anchors": {
+      "0.3": "Generic advice like 'simplify this function'. No specific code, no line references. Could apply to any function.",
+      "0.5": "Identifies the right problem (e.g., deep nesting) but suggested code has syntax errors or would change behavior.",
+      "0.7": "Correct guard clause extraction with valid code. Targets the right lines. Would reduce nesting by 1-2 levels. Preserves behavior.",
+      "0.95": "Multiple suggestions ordered by impact. Each has valid, tested code. Extractions create well-named helpers. Combined effect cuts cyclomatic complexity by 30%+. All error paths preserved."
+    }
+  },
+
+  "refactoring": {
+    "rubric": "Weighted criteria:\n  0.35 - Correctness: extraction/rename preserves behavior and semantics\n  0.25 - Naming: extracted function names are descriptive verb+noun, renames improve clarity\n  0.20 - Boundary: extraction point is a clean seam (clear inputs/outputs)\n  0.10 - Rationale: explanation makes sense to another developer\n  0.10 - Scope: doesn't over-extract (pulling out 2-line helpers that only run once)",
+    "style_rules": "- Extracted functions: verb_noun naming (e.g., classify_severity, build_entry)\n- Variables: descriptive, no abbreviations except well-known (cfg, ctx, idx)\n- Booleans: is_/has_/can_/should_ prefix\n- Never rename loop variables (i, j, k) or math variables (x, y)\n- Extraction must reduce the original function, not just move code",
+    "anchors": {
+      "0.3": "Suggests renaming 'i' to 'index' in a simple loop. Over-extracts a 2-line assignment into a separate function.",
+      "0.5": "Identifies a real DRY violation but the extracted function name is vague ('process_data'). Boundary is unclear.",
+      "0.7": "Clean extraction with descriptive name, clear inputs/outputs. Rename suggestions target genuinely confusing names. Rationale explains why.",
+      "0.95": "Extractions create reusable, testable helpers. Names are precise. The refactored code reads like documentation. No over-extraction."
+    }
+  },
+
+  "comments": {
+    "rubric": "Weighted criteria:\n  0.35 - Relevance: comments explain non-obvious logic, not obvious operations\n  0.25 - Accuracy: comment correctly describes what the code does\n  0.20 - Categorization: correct category (explanation/warning/todo/rationale)\n  0.20 - Value-add: would removing this comment make the code harder to understand?",
+    "style_rules": "- Never comment obvious operations (x = x + 1  # increment x)\n- Focus on WHY, not WHAT (rationale over description)\n- Warnings for non-obvious side effects or gotchas\n- TODOs must be actionable (not 'TODO: fix this')\n- Keep comments concise (one line when possible)\n- Comment above the line, not inline (unless very short)",
+    "anchors": {
+      "0.3": "Comments obvious operations: '# loop through items' on a for loop. Wrong categories.",
+      "0.5": "Some useful comments mixed with obvious ones. Categories mostly correct. A few are too vague.",
+      "0.7": "All comments explain non-obvious logic. Categories correct. No obvious-operation comments. Concise.",
+      "0.95": "Every comment answers a question the reader would have. Warnings flag real gotchas. Rationale comments explain design decisions that aren't obvious from the code. Zero noise."
+    }
+  },
+
+  "missing_imports": {
+    "rubric": "Weighted criteria:\n  0.40 - Correctness: suggested import actually provides the used name\n  0.30 - Confidence: only high-confidence suggestions (no guessing)\n  0.20 - Specificity: from-import over bare import where appropriate\n  0.10 - Ordering: follows isort conventions",
+    "anchors": {
+      "0.3": "Suggests 'import os' when the code uses 'Path' (wrong module). Low confidence on everything.",
+      "0.7": "Correctly identifies 'from pathlib import Path' for Path usage. High confidence. Misses one obscure import.",
+      "0.95": "Every suggestion is correct, high confidence, specific from-imports. Catches typing imports, stdlib, and third-party. No false positives."
+    }
+  }
+}
