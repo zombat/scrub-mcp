@@ -31,6 +31,7 @@ src/scrub_mcp/optimizers/tune.py
 src/scrub_mcp/tools/__init__.py
 src/scrub_mcp/tools/complexity.py
 src/scrub_mcp/tools/dead_code.py
+src/scrub_mcp/tools/fs.py
 src/scrub_mcp/tools/imports.py
 src/scrub_mcp/tools/linter.py
 src/scrub_mcp/tools/parser.py

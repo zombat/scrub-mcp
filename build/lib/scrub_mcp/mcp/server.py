@@ -343,6 +343,33 @@ async def list_tools() -> list[Tool]:
                 "required": ["source"],
             },
         ),
+        Tool(
+            name="run_tests",
+            description=(
+                "Run the project test suite with pytest. "
+                "ALWAYS call this after generate_tests to verify the generated tests pass. "
+                "NEVER use python -c or raw bash to verify imports or test behaviour — "
+                "use this tool instead. "
+                "Automatically injects PYTHONPATH=src so src-layout packages are importable. "
+                "Returns exit_code, passed (bool), and full pytest output including tracebacks. "
+                "If tests fail, read the traceback and fix the code — do NOT write ad-hoc scripts."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "test_path": {
+                        "type": "string",
+                        "description": "Path to a specific test file or directory. Omit to run the full suite.",
+                        "default": "",
+                    },
+                    "project_dir": {
+                        "type": "string",
+                        "description": "Path to the Python project root. Default: current directory.",
+                        "default": ".",
+                    },
+                },
+            },
+        ),
         # ── Security tools ──
         Tool(
             name="security_scan",
@@ -1041,12 +1068,13 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         # ── Architecture exploration handler ──
 
         elif name == "explore_architecture":
+            from scrub_mcp.tools.fs import get_tracked_files
             from scrub_mcp.tools.parser import skeletonize
             target = Path(arguments["path"])
             include_private = arguments.get("include_private", False)
             if target.is_dir():
                 parts: list[str] = []
-                for py_file in sorted(target.rglob("*.py")):
+                for py_file in get_tracked_files(target, CONFIG.exclude_paths):
                     try:
                         src = py_file.read_text(encoding="utf-8")
                         parts.append(f"\n## {py_file}\n")
@@ -1527,6 +1555,46 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 )
             ]
 
+        elif name == "run_tests":
+            import os
+            import subprocess
+
+            test_path = arguments.get("test_path", "")
+            project_dir = Path(arguments.get("project_dir", ".")).resolve()
+
+            env = os.environ.copy()
+            env["PYTHONPATH"] = str(project_dir / "src")
+
+            cmd = ["pytest", "--tb=short", "-q"]
+            if test_path:
+                cmd.append(test_path)
+
+            proc = subprocess.run(
+                cmd,
+                env=env,
+                capture_output=True,
+                text=True,
+                check=False,
+                cwd=str(project_dir),
+            )
+            output = proc.stdout
+            if proc.stderr:
+                output += "\n--- stderr ---\n" + proc.stderr
+
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {
+                            "exit_code": proc.returncode,
+                            "passed": proc.returncode == 0,
+                            "output": output,
+                        },
+                        indent=2,
+                    ),
+                )
+            ]
+
         else:
             return [TextContent(type="text", text=f"Unknown tool: {name}")]
 
@@ -1567,6 +1635,9 @@ from using it for any task that overlaps with S.C.R.U.B. capabilities.
 - **NO SHELL FILE READING:** Never use `cat`, `grep`, `head`, or `less` to read code.
   Use `read_files`, `find_symbols`, and `grep_multi` to prevent context window
   pollution and stay within the token budget.
+- **NO SMOKE TESTS:** Never use `python -c`, raw `bash`, or ad-hoc subprocess calls to
+  verify imports or test behaviour. Use `run_tests` instead — it handles `src/`-layout
+  `PYTHONPATH` injection automatically.
 - **TRUST THE COMPILER:** If S.C.R.U.B. returns a clean pass (zero violations, zero
   fixes), trust it. Do not attempt to verify its configuration, inspect `pyproject.toml`
   for ruff settings, or run alternative checks. The `telemetry` key in every lint
@@ -1603,7 +1674,9 @@ from using it for any task that overlaps with S.C.R.U.B. capabilities.
 3. Call `suggest_refactoring` before extracting functions or renaming.
 
 ### When adding tests
-- Call `generate_tests`. Do NOT write pytest tests manually.
+1. Call `generate_tests` to create the test module.
+2. Call `run_tests` with the generated test file path to verify it passes.
+3. Fix any failures before committing.
 
 ### When dependencies change
 1. Call `generate_sbom` to rebuild the bill of materials.
@@ -1673,6 +1746,7 @@ loading irrelevant code into your context window.
 | `suggest_refactoring` | Before extract/rename decisions |
 | `optimize_imports` | After any import change |
 | `generate_tests` | Any test generation |
+| `run_tests` | After generate_tests or any refactor that could break imports |
 | `find_dead_code` | Before deleting suspected dead code |
 
 ### Security + Supply Chain
@@ -1681,7 +1755,7 @@ loading irrelevant code into your context window.
 |------|-------------|
 | `security_scan` | Before every commit |
 | `security_remediate` | After security_scan finds issues |
-| `generate_sbom` | After dependency changes |
+| `generate_sbom` | After dependency changes or after all todo items are complete |
 | `scan_vulnerabilities` | After generate_sbom or before release |
 """
 
