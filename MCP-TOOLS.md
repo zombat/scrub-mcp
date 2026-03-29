@@ -73,3 +73,34 @@ No edits, writes, or plans may proceed without passing through this gate first.
 | Before touching multiple Python files | `hygiene_batch` |
 | Repeated runs on a file already processed | `hygiene_incremental` |
 | Before any commit | `security_scan` → `security_remediate` (if findings) → `optimize_imports` |
+
+---
+
+## CLI Commands
+
+S.C.R.U.B. also ships a `scrub` CLI for use in CI pipelines, pre-commit hooks, and local workflows. These commands do **not** require an MCP client.
+
+| Command | LLM? | What it does |
+|---------|------|-------------|
+| `scrub check` | No | Detect violations (missing docstrings/types, complexity, security, vulnerabilities). Exit 1 if `--fail-on` criteria met. Supports `--format text\|json\|sarif`. |
+| `scrub fix` | Yes | Run the full hygiene pipeline and write fixes to disk. Optional `--commit` and `--branch`. |
+| `scrub diff` | Yes | Show what `scrub fix` would change without touching files. Output as unified diff or JSON. |
+| `scrub audit` | No | Combined Bandit security scan + OSV.dev vulnerability scan + optional SBOM export. |
+| `scrub cache stats` | No | Show cache hit rate, size, entries by type, stale fingerprints. |
+| `scrub cache clear` | No | Remove cache entries (all, by `--type`, or `--stale`). |
+| `scrub cache warm` | Yes | Pre-populate cache by running the pipeline on all project files. |
+
+All commands respect `config.yaml` and accept `--config`, `--quiet`, and `--since` (diff-aware narrowing).
+
+### SARIF Rule IDs
+
+| Rule ID | Source |
+|---------|--------|
+| `SCRUB-DOC-001` | Missing function docstring |
+| `SCRUB-DOC-002` | Missing class docstring |
+| `SCRUB-DOC-003` | Missing module docstring |
+| `SCRUB-TYPE-001` | Missing type annotation |
+| `SCRUB-CMPLX-001` | High cyclomatic complexity |
+| `SCRUB-CMPLX-002` | High cognitive complexity |
+| `SCRUB-SEC-{ID}` | Bandit finding (e.g. `SCRUB-SEC-B101`) |
+| `SCRUB-VULN-{ID}` | OSV vulnerability (e.g. `SCRUB-VULN-CVE-2024-1234`) |

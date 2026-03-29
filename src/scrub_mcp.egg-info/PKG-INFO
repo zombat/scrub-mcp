@@ -12,6 +12,7 @@ Requires-Dist: pathspec>=0.11
 Requires-Dist: ruff>=0.8
 Requires-Dist: pydantic>=2.0
 Requires-Dist: pyyaml>=6.0
+Requires-Dist: typer>=0.9
 Provides-Extra: security
 Requires-Dist: bandit>=1.7; extra == "security"
 Provides-Extra: prefilter
@@ -30,7 +31,7 @@ Requires-Dist: scrub-mcp[prefilter,security]; extra == "all"
 
 **Source Code Review, Uplift, and Baselining**
 
-A 16-tool MCP server that cuts cloud LLM token usage on code quality tasks. Deterministic tools handle what they can. A local LLM (via DSPy) handles the rest. Cloud models plan and review. Nothing else.
+A 22-tool MCP server and CI-ready CLI that cuts cloud LLM token usage on code quality tasks. Deterministic tools handle what they can. A local LLM (via DSPy) handles the rest. Cloud models plan and review. Nothing else.
 
 ```
 Cloud LLM (plan) ──> S.C.R.U.B. MCP Server ──> Cloud LLM (review)
@@ -40,6 +41,12 @@ Cloud LLM (plan) ──> S.C.R.U.B. MCP Server ──> Cloud LLM (review)
         Deterministic   DSPy +     Security +
         (Ruff, AST,    Local LLM   Supply Chain
          pyright)     (Qwen Coder)  (Bandit, OSV)
+
+              ┌───────────┴───────────┐
+              ▼                       ▼
+         CLI (scrub)            GitHub Actions
+     check│fix│diff│audit      .pre-commit-hooks
+         SARIF 2.1.0 output
 ```
 
 ## Why
@@ -60,7 +67,7 @@ S.C.R.U.B. moves that work to a local pipeline where compute is virtually free, 
 
 **Structural laziness enforcement.** Tool descriptions are written as imperatives ("MUST use this tool", "Do NOT write manually") so the cloud LLM routes through S.C.R.U.B. instead of generating boilerplate itself. `AGENTS.md` establishes the division of labor before the first prompt.
 
-## The 16 Tools
+## The 22 Tools
 
 ### Code Hygiene
 
@@ -71,6 +78,8 @@ S.C.R.U.B. moves that work to a local pipeline where compute is virtually free, 
 | `annotate_types` | Batched | All args + all returns, no exceptions |
 | `add_comments` | Gated | Only fires on complex functions (cyclomatic/cognitive threshold) |
 | `hygiene_full` | Mixed | Full pipeline: lint, docstrings, types, comments |
+| `hygiene_batch` | Mixed | `hygiene_full` across multiple files in parallel |
+| `hygiene_incremental` | Mixed | Diff-aware, cache-accelerated hygiene (skips unchanged functions) |
 
 ### Coding Tools
 
@@ -80,8 +89,18 @@ S.C.R.U.B. moves that work to a local pipeline where compute is virtually free, 
 | `suggest_simplifications` | Yes | Concrete refactoring: early returns, guard clauses, extract function |
 | `optimize_imports` | Mixed | Ruff removes unused, DSPy infers missing imports |
 | `generate_tests` | Batched | pytest stubs: happy path, edge cases, parametrize |
+| `run_tests` | No | Run pytest with `PYTHONPATH=src`, returns exit code + output |
 | `find_dead_code` | No | Unreachable code, unused vars, redundant else, commented blocks |
 | `suggest_refactoring` | Yes | Extract function candidates, rename suggestions |
+
+### Exploration
+
+| Tool | LLM? | What it does |
+|------|------|-------------|
+| `explore_architecture` | No | AST skeleton: signatures + docstrings, bodies replaced with `...` |
+| `read_files` | No | Batch-read multiple files in one call |
+| `find_symbols` | No | Extract function/class signatures via AST |
+| `grep_multi` | No | Multi-pattern regex search across the codebase |
 
 ### Security + Supply Chain
 
@@ -91,8 +110,6 @@ S.C.R.U.B. moves that work to a local pipeline where compute is virtually free, 
 | `security_remediate` | Yes | Triage-first: rewrite, `# nosec` with justification, or accept risk |
 | `generate_sbom` | No | CycloneDX 1.5 / SPDX 2.3 from pip, pyproject, lock files |
 | `scan_vulnerabilities` | No | Cross-reference PURLs against OSV.dev (PyPI, GHSA, NVD) |
-
-One more tool slot reserved for the DSPy core telemetry contribution (OpenTelemetry + AI/ML-BOM).
 
 ## Quick Start
 

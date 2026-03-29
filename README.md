@@ -2,7 +2,7 @@
 
 **Source Code Review, Uplift, and Baselining**
 
-A 16-tool MCP server that cuts cloud LLM token usage on code quality tasks. Deterministic tools handle what they can. A local LLM (via DSPy) handles the rest. Cloud models plan and review. Nothing else.
+A 22-tool MCP server and CI-ready CLI that cuts cloud LLM token usage on code quality tasks. Deterministic tools handle what they can. A local LLM (via DSPy) handles the rest. Cloud models plan and review. Nothing else.
 
 ```
 Cloud LLM (plan) ──> S.C.R.U.B. MCP Server ──> Cloud LLM (review)
@@ -12,6 +12,12 @@ Cloud LLM (plan) ──> S.C.R.U.B. MCP Server ──> Cloud LLM (review)
         Deterministic   DSPy +     Security +
         (Ruff, AST,    Local LLM   Supply Chain
          pyright)     (Qwen Coder)  (Bandit, OSV)
+
+              ┌───────────┴───────────┐
+              ▼                       ▼
+         CLI (scrub)            GitHub Actions
+     check│fix│diff│audit      .pre-commit-hooks
+         SARIF 2.1.0 output
 ```
 
 ## Why
@@ -32,7 +38,7 @@ S.C.R.U.B. moves that work to a local pipeline where compute is virtually free, 
 
 **Structural laziness enforcement.** Tool descriptions are written as imperatives ("MUST use this tool", "Do NOT write manually") so the cloud LLM routes through S.C.R.U.B. instead of generating boilerplate itself. `AGENTS.md` establishes the division of labor before the first prompt.
 
-## The 16 Tools
+## The 22 Tools
 
 ### Code Hygiene
 
@@ -43,6 +49,8 @@ S.C.R.U.B. moves that work to a local pipeline where compute is virtually free, 
 | `annotate_types` | Batched | All args + all returns, no exceptions |
 | `add_comments` | Gated | Only fires on complex functions (cyclomatic/cognitive threshold) |
 | `hygiene_full` | Mixed | Full pipeline: lint, docstrings, types, comments |
+| `hygiene_batch` | Mixed | `hygiene_full` across multiple files in parallel |
+| `hygiene_incremental` | Mixed | Diff-aware, cache-accelerated hygiene (skips unchanged functions) |
 
 ### Coding Tools
 
@@ -52,8 +60,18 @@ S.C.R.U.B. moves that work to a local pipeline where compute is virtually free, 
 | `suggest_simplifications` | Yes | Concrete refactoring: early returns, guard clauses, extract function |
 | `optimize_imports` | Mixed | Ruff removes unused, DSPy infers missing imports |
 | `generate_tests` | Batched | pytest stubs: happy path, edge cases, parametrize |
+| `run_tests` | No | Run pytest with `PYTHONPATH=src`, returns exit code + output |
 | `find_dead_code` | No | Unreachable code, unused vars, redundant else, commented blocks |
 | `suggest_refactoring` | Yes | Extract function candidates, rename suggestions |
+
+### Exploration
+
+| Tool | LLM? | What it does |
+|------|------|-------------|
+| `explore_architecture` | No | AST skeleton: signatures + docstrings, bodies replaced with `...` |
+| `read_files` | No | Batch-read multiple files in one call |
+| `find_symbols` | No | Extract function/class signatures via AST |
+| `grep_multi` | No | Multi-pattern regex search across the codebase |
 
 ### Security + Supply Chain
 
@@ -64,18 +82,110 @@ S.C.R.U.B. moves that work to a local pipeline where compute is virtually free, 
 | `generate_sbom` | No | CycloneDX 1.5 / SPDX 2.3 from pip, pyproject, lock files |
 | `scan_vulnerabilities` | No | Cross-reference PURLs against OSV.dev (PyPI, GHSA, NVD) |
 
-One more tool slot reserved for the DSPy core telemetry contribution (OpenTelemetry + AI/ML-BOM).
-
 ## Quick Start
 
 ### Install
 
 ```bash
+# From GitHub
+pip install "scrub-mcp @ git+https://github.com/zombat/scrub-mcp.git"
+pip install "scrub-mcp[all] @ git+https://github.com/zombat/scrub-mcp.git"
+
+# From PyPI (when published)
 pip install scrub-mcp
+pip install scrub-mcp[all]          # everything
+
+# Extras
 pip install scrub-mcp[security]     # adds Bandit
 pip install scrub-mcp[prefilter]    # adds pyright + pydocstyle
-pip install scrub-mcp[all]          # everything
 ```
+
+### CLI
+
+S.C.R.U.B. ships a `scrub` CLI for CI pipelines, pre-commit hooks, and local use. No LLM required for `check` and `audit`.
+
+```bash
+# Detect violations (deterministic, no LLM)
+scrub check src/ --fail-on missing-docstrings,missing-types,complexity:10,security:MEDIUM
+
+# SARIF output for GitHub Code Scanning
+scrub check src/ --fail-on missing-docstrings --format sarif --output results.sarif
+
+# Diff-aware (only files changed since main)
+scrub check . --since main --fail-on missing-docstrings,missing-types
+
+# Auto-fix with commit (requires local LLM)
+scrub fix src/ --steps docstrings types --commit
+
+# Preview what fix would change
+scrub diff src/ --format unified
+
+# Security + supply-chain audit
+scrub audit . --fail-on-severity HIGH --sbom-format cyclonedx --output-sbom sbom.json
+
+# Cache management
+scrub cache stats
+scrub cache clear --stale
+scrub cache warm src/
+```
+
+#### `scrub check` exit codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Clean (or `--fail-on` not specified) |
+| 1 | Violations found matching `--fail-on` criteria |
+
+#### `--fail-on` options
+
+| Token | What it checks |
+|-------|---------------|
+| `missing-docstrings` | Functions, classes, and modules without docstrings |
+| `missing-types` | Functions without type annotations |
+| `complexity:N` | Functions with cyclomatic complexity >= N |
+| `security:SEVERITY` | Bandit findings at or above severity (low, medium, high) |
+| `vulns:SEVERITY` | OSV.dev vulnerabilities at or above severity (low, medium, high, critical) |
+
+#### Output formats
+
+All commands that produce reports support `--format text|json|sarif`. SARIF 2.1.0 output maps directly to GitHub Code Scanning — each violation becomes a SARIF result with location, message, and rule ID (e.g. `SCRUB-DOC-001`, `SCRUB-SEC-B101`, `SCRUB-VULN-CVE-2024-1234`).
+
+### GitHub Actions
+
+Add S.C.R.U.B. as a quality gate in your CI pipeline:
+
+```yaml
+# .github/workflows/scrub.yml
+name: Code Quality
+on: [push, pull_request]
+
+jobs:
+  scrub:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: zombat/scrub-mcp@v1
+        with:
+          mode: check
+          fail-on: "missing-docstrings,missing-types,security:MEDIUM"
+          format: sarif
+```
+
+The composite action installs S.C.R.U.B., runs the selected mode, and uploads SARIF to GitHub Code Scanning automatically. Supported modes: `check`, `fix`, `diff`, `audit`.
+
+### Pre-commit Hook
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/zombat/scrub-mcp
+    rev: v1
+    hooks:
+      - id: scrub-check          # docstrings + types
+      - id: scrub-security       # Bandit at MEDIUM severity
+```
+
+Fast because diff-aware (`--since HEAD`) combined with the artifact cache means only staged changes are analyzed.
 
 ### LLM Considerations
 
@@ -219,43 +329,53 @@ Model fingerprints detect drift when you upgrade Qwen. The health checker tells 
 ## Project Structure
 
 ```
+action.yml                 # GitHub Actions composite action
+.pre-commit-hooks.yaml     # Pre-commit hook definitions (scrub-check, scrub-security)
+config.yaml                # Default pipeline configuration
 src/scrub_mcp/
-  config.py              # Pydantic config: model, ruff, optimizer, batch, prefilter
-  models.py              # All I/O models (Pydantic)
-  pipeline.py            # Orchestrator: deterministic-first, batched, gated
-  examples/              # Bundled training examples (ships with pip install)
-    {topic}_messy.py     # Undocumented input
-    {topic}_clean.py     # Fully annotated ground truth
-    {topic}_test.py      # pytest tests
+  cli.py                   # CLI entrypoint: check, fix, diff, audit, cache
+  config.py                # Pydantic config: model, ruff, optimizer, batch, prefilter
+  models.py                # All I/O models (Pydantic)
+  pipeline.py              # Orchestrator: deterministic-first, batched, gated
+  examples/                # Bundled training examples (ships with pip install)
+    {topic}_messy.py       # Undocumented input
+    {topic}_clean.py       # Fully annotated ground truth
+    {topic}_test.py        # pytest tests
   mcp/
-    server.py            # 16-tool MCP server (stdio) + --agent-instructions
+    server.py              # 22-tool MCP server (stdio) + --agent-instructions
   modules/
-    signatures.py        # DSPy signatures: hygiene tasks
-    hygiene.py           # DSPy modules: docstrings, types, comments (single + batch)
-    coding_signatures.py # DSPy signatures: coding + security tasks
-    coding_tools.py      # DSPy modules: complexity, tests, refactoring, security triage
+    signatures.py          # DSPy signatures: hygiene tasks
+    hygiene.py             # DSPy modules: docstrings, types, comments (single + batch)
+    coding_signatures.py   # DSPy signatures: coding + security tasks
+    coding_tools.py        # DSPy modules: complexity, tests, refactoring, security triage
   tools/
-    parser.py            # AST extraction: functions, classes, modules, complexity
-    linter.py            # Ruff wrapper
-    rewriter.py          # Source rewriter: apply docstrings, types back to source
-    utils.py             # Pre-filters (pyright, pydocstyle), batching
-    complexity.py        # Cyclomatic + cognitive complexity analyzer
-    dead_code.py         # Unreachable code, unused vars, commented blocks
-    imports.py           # Import optimizer (Ruff + AST)
-    security.py          # Bandit wrapper
-    sbom.py              # CycloneDX 1.5 / SPDX 2.3 generator
-    vulnscan.py          # OSV.dev vulnerability scanner
+    parser.py              # AST extraction: functions, classes, modules, complexity
+    linter.py              # Ruff wrapper
+    rewriter.py            # Source rewriter: apply docstrings, types back to source
+    sarif.py               # SARIF 2.1.0 serializer for check/audit output
+    cache.py               # 3-layer composite hash artifact cache
+    diff.py                # Unified diff parser + function narrowing
+    fs.py                  # Gitignore-aware file traversal
+    complexity.py          # Cyclomatic + cognitive complexity analyzer
+    dead_code.py           # Unreachable code, unused vars, commented blocks
+    imports.py             # Import optimizer (Ruff + AST)
+    security.py            # Bandit wrapper
+    sbom.py                # CycloneDX 1.5 / SPDX 2.3 generator
+    vulnscan.py            # OSV.dev vulnerability scanner
+    savings.py             # Cloud cost savings estimator
   optimizers/
-    tune.py              # Per-module optimizer: teacher-student, calibrated judge
-    health.py            # Cache staleness detection + model fingerprinting
-    examples_gen.py      # Training example generator (Claude API)
+    tune.py                # Per-module optimizer: teacher-student, calibrated judge
+    health.py              # Cache staleness detection + model fingerprinting
+    examples_gen.py        # Training example generator (Claude API)
 scripts/
-  gen_examples.py        # CLI wrapper around examples_gen (dev convenience)
+  gen_examples.py          # CLI wrapper around examples_gen (dev convenience)
 ```
 
 ## The ROI
 
 By inserting S.C.R.U.B. into the Claude Code (or any MCP client) workflow, you cut cloud token usage on every generation loop. The local pipeline doesn't get lazy on function 47. It doesn't skip the boring parts to save tokens. It runs the same quality pass on every function, every class, every file.
+
+The CLI layer (`scrub check`, `scrub audit`) enforces the same standards in CI without needing an LLM at all. SARIF output feeds directly into GitHub Code Scanning, so violations show up as inline annotations on pull requests. Pre-commit hooks catch issues before they reach the pipeline.
 
 What comes out the other side isn't generic boilerplate. It's a fully documented, typed, linted, security-scanned, SBOM-tracked codebase from the first prompt. Not a replacement for your GRC stack, but a strong addition that generates its own compliance evidence.
 

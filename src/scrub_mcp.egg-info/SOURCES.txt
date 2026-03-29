@@ -1,6 +1,7 @@
 README.md
 pyproject.toml
 src/scrub_mcp/__init__.py
+src/scrub_mcp/cli.py
 src/scrub_mcp/config.py
 src/scrub_mcp/models.py
 src/scrub_mcp/pipeline.py
@@ -8,6 +9,7 @@ src/scrub_mcp/utils.py
 src/scrub_mcp.egg-info/PKG-INFO
 src/scrub_mcp.egg-info/SOURCES.txt
 src/scrub_mcp.egg-info/dependency_links.txt
+src/scrub_mcp.egg-info/entry_points.txt
 src/scrub_mcp.egg-info/requires.txt
 src/scrub_mcp.egg-info/top_level.txt
 src/scrub_mcp/examples/__init__.py
@@ -29,13 +31,16 @@ src/scrub_mcp/optimizers/examples_gen.py
 src/scrub_mcp/optimizers/health.py
 src/scrub_mcp/optimizers/tune.py
 src/scrub_mcp/tools/__init__.py
+src/scrub_mcp/tools/cache.py
 src/scrub_mcp/tools/complexity.py
 src/scrub_mcp/tools/dead_code.py
+src/scrub_mcp/tools/diff.py
 src/scrub_mcp/tools/fs.py
 src/scrub_mcp/tools/imports.py
 src/scrub_mcp/tools/linter.py
 src/scrub_mcp/tools/parser.py
 src/scrub_mcp/tools/rewriter.py
+src/scrub_mcp/tools/sarif.py
 src/scrub_mcp/tools/savings.py
 src/scrub_mcp/tools/sbom.py
 src/scrub_mcp/tools/security.py
