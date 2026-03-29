@@ -31,6 +31,7 @@ def estimate_savings(
 
     Returns:
         Dict with keys: file_tokens, tokens_saved, calls_saved, est_cost, currency.
+
     """
     file_tokens = len(source) // 4
     if fixes <= 0:

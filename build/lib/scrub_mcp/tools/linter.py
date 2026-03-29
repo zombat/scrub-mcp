@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import tempfile
 from pathlib import Path
@@ -14,69 +15,60 @@ def run_ruff(source: str, config: RuffConfig | None = None) -> tuple[str, LintRe
     """Run Ruff on source code. Returns (fixed_source, lint_result).
 
     Writes to a temp file because Ruff operates on files, not stdin for fix mode.
+    Three subprocess calls (down from four): check-JSON, fix, format.
+    The JSON check captures all violation metadata before fixing, eliminating
+    the redundant check-after-fix call.
     """
     cfg = config or RuffConfig()
 
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".py", delete=False, encoding="utf-8"
-    ) as tmp:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, encoding="utf-8") as tmp:
         tmp.write(source)
         tmp_path = Path(tmp.name)
 
     try:
-        # Count violations before fix
-        check_before = subprocess.run(
-            [
-                "ruff", "check",
-                "--select", ",".join(cfg.select),
-                "--ignore", ",".join(cfg.ignore),
-                "--line-length", str(cfg.line_length),
-                str(tmp_path),
-            ],
+        common_flags = [
+            "--select", ",".join(cfg.select),
+            "--ignore", ",".join(cfg.ignore),
+            "--line-length", str(cfg.line_length),
+        ]
+
+        # Call 1: JSON check (no --fix). Reports all violations with their fix eligibility.
+        # violations with a "fix" field are auto-fixable; fix=null are not.
+        check_result = subprocess.run(
+            ["ruff", "check", "--output-format", "json"] + common_flags + [str(tmp_path)],
             capture_output=True,
             text=True,
         )
-        violations_before = _count_violations(check_before.stdout)
 
-        # Apply fixes
-        if cfg.fix:
+        try:
+            diagnostics: list[dict] = json.loads(check_result.stdout) if check_result.stdout.strip() else []
+        except json.JSONDecodeError:
+            diagnostics = []
+
+        violations_before = len(diagnostics)
+        # Diagnostics with fix=null cannot be auto-fixed; they remain after --fix
+        remaining_diags = [d for d in diagnostics if d.get("fix") is None]
+        violations_after = len(remaining_diags)
+        remaining = [
+            f"{d.get('filename', '')}:{d.get('location', {}).get('row', 0)}: "
+            f"[{d.get('code', '')}] {d.get('message', '')}"
+            for d in remaining_diags
+        ]
+
+        # Call 2: Apply fixes in-place
+        if cfg.fix and violations_before > violations_after:
             subprocess.run(
-                [
-                    "ruff", "check", "--fix",
-                    "--select", ",".join(cfg.select),
-                    "--ignore", ",".join(cfg.ignore),
-                    "--line-length", str(cfg.line_length),
-                    str(tmp_path),
-                ],
+                ["ruff", "check", "--fix"] + common_flags + [str(tmp_path)],
                 capture_output=True,
                 text=True,
             )
 
-        # Format
+        # Call 3: Format
         subprocess.run(
             ["ruff", "format", "--line-length", str(cfg.line_length), str(tmp_path)],
             capture_output=True,
             text=True,
         )
-
-        # Count remaining violations
-        check_after = subprocess.run(
-            [
-                "ruff", "check",
-                "--select", ",".join(cfg.select),
-                "--ignore", ",".join(cfg.ignore),
-                "--line-length", str(cfg.line_length),
-                str(tmp_path),
-            ],
-            capture_output=True,
-            text=True,
-        )
-        violations_after = _count_violations(check_after.stdout)
-        remaining = [
-            line.strip()
-            for line in check_after.stdout.splitlines()
-            if line.strip() and not line.startswith("Found")
-        ]
 
         fixed_source = tmp_path.read_text(encoding="utf-8")
 
@@ -90,12 +82,3 @@ def run_ruff(source: str, config: RuffConfig | None = None) -> tuple[str, LintRe
 
     finally:
         tmp_path.unlink(missing_ok=True)
-
-
-def _count_violations(ruff_output: str) -> int:
-    """Parse Ruff output to count violation lines."""
-    return sum(
-        1
-        for line in ruff_output.splitlines()
-        if line.strip() and not line.startswith("Found") and not line.startswith("All checks")
-    )

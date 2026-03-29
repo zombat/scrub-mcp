@@ -38,6 +38,7 @@ class DocstringGenerator(dspy.Module):
     """Generate Google-style docstrings for functions and methods."""
 
     def __init__(self) -> None:
+        """Initializes the BatchTypeAnnotator class with a BatchTypeAnnotationSignature object."""
         super().__init__()
         self.generate = dspy.ChainOfThought(DocstringSignature)
 
@@ -48,6 +49,7 @@ class DocstringGenerator(dspy.Module):
         decorators: str = "",
         parent_class: str = "",
     ) -> str:
+        """Processes a JSON string and returns the annotations in JSON format."""
         result = self.generate(
             function_signature=function_signature,
             function_body=function_body,
@@ -61,10 +63,12 @@ class ClassDocstringGenerator(dspy.Module):
     """Generate Google-style docstrings for classes."""
 
     def __init__(self) -> None:
+        """Initializes the BatchTypeAnnotator class with a BatchTypeAnnotationSignature object."""
         super().__init__()
         self.generate = dspy.ChainOfThought(ClassDocstringSignature)
 
     def forward(self, cls: ClassInfo) -> GeneratedDocstring:
+        """Processes a JSON string and returns the annotations in JSON format."""
         result = self.generate(
             class_name=cls.name,
             bases=", ".join(cls.bases),
@@ -84,10 +88,12 @@ class ModuleDocstringGenerator(dspy.Module):
     """Generate Google-style docstrings for Python modules (files)."""
 
     def __init__(self) -> None:
+        """Initializes the BatchTypeAnnotator class with a BatchTypeAnnotationSignature object."""
         super().__init__()
         self.generate = dspy.ChainOfThought(ModuleDocstringSignature)
 
     def forward(self, module: ModuleInfo) -> GeneratedDocstring:
+        """Processes a JSON string and returns the annotations in JSON format."""
         result = self.generate(
             module_imports="\n".join(module.imports[:20]),  # Cap to keep tokens down
             top_level_names=", ".join(module.top_level_names),
@@ -106,6 +112,7 @@ class TypeAnnotator(dspy.Module):
     """Infer type annotations for ALL params and return values."""
 
     def __init__(self) -> None:
+        """Initializes the BatchTypeAnnotator class with a BatchTypeAnnotationSignature object."""
         super().__init__()
         self.annotate = dspy.ChainOfThought(TypeAnnotationSignature)
 
@@ -115,6 +122,7 @@ class TypeAnnotator(dspy.Module):
         function_body: str,
         existing_annotations: str = "{}",
     ) -> str:
+        """Processes a JSON string and returns the annotations in JSON format."""
         result = self.annotate(
             function_signature=function_signature,
             function_body=function_body,
@@ -131,6 +139,7 @@ class CommentWriter(dspy.Module):
     """
 
     def __init__(self, config: CommentConfig | None = None) -> None:
+        """Initializes the BatchTypeAnnotator class with a BatchTypeAnnotationSignature object."""
         super().__init__()
         self.comment = dspy.ChainOfThought(CommentSignature)
         self.config = config or CommentConfig()
@@ -144,6 +153,7 @@ class CommentWriter(dspy.Module):
         return False
 
     def forward(self, code_block: str, context: str = "", complexity: int = 1) -> str:
+        """Processes a JSON string and returns the annotations in JSON format."""
         result = self.comment(
             code_block=code_block,
             context=context,
@@ -161,12 +171,14 @@ class BatchDocstringGenerator(dspy.Module):
     """
 
     def __init__(self) -> None:
+        """Initializes the BatchTypeAnnotator class with a BatchTypeAnnotationSignature object."""
         super().__init__()
         from scrub_mcp.modules.signatures import BatchDocstringSignature
 
         self.generate = dspy.ChainOfThought(BatchDocstringSignature)
 
     def forward(self, functions_json: str) -> str:
+        """Processes a JSON string and returns the annotations in JSON format."""
         result = self.generate(functions_json=functions_json)
         return result.docstrings_json
 
@@ -179,11 +191,13 @@ class BatchTypeAnnotator(dspy.Module):
     """
 
     def __init__(self) -> None:
+        """Initializes the BatchTypeAnnotator class with a BatchTypeAnnotationSignature object."""
         super().__init__()
         from scrub_mcp.modules.signatures import BatchTypeAnnotationSignature
 
         self.annotate = dspy.ChainOfThought(BatchTypeAnnotationSignature)
 
     def forward(self, functions_json: str) -> str:
+        """Processes a JSON string and returns the annotations in JSON format."""
         result = self.annotate(functions_json=functions_json)
         return result.annotations_json

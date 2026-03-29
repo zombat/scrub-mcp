@@ -31,7 +31,11 @@ def apply_module_docstring(source: str, docstring: str) -> str:
     insert_at = 0
     for i, line in enumerate(lines):
         stripped = line.strip()
-        if stripped.startswith("#!") or stripped.startswith("# -*-") or stripped.startswith("# coding"):
+        if (
+            stripped.startswith("#!")
+            or stripped.startswith("# -*-")
+            or stripped.startswith("# coding")
+        ):
             insert_at = i + 1
         elif stripped.startswith("from __future__"):
             insert_at = i + 1

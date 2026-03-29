@@ -26,6 +26,7 @@ def find_dead_code(source: str) -> list[DeadCodeItem]:
 
     Returns:
         List of dead code items found.
+
     """
     items: list[DeadCodeItem] = []
     tree = ast.parse(source)
@@ -118,9 +119,8 @@ def _find_redundant_else(tree: ast.Module) -> list[DeadCodeItem]:
             continue
 
         # Check if the if-body always terminates
-        body_terminates = (
-            node.body
-            and isinstance(node.body[-1], (ast.Return, ast.Raise, ast.Break, ast.Continue))
+        body_terminates = node.body and isinstance(
+            node.body[-1], (ast.Return, ast.Raise, ast.Break, ast.Continue)
         )
 
         if body_terminates:

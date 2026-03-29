@@ -17,19 +17,7 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
-from scrub_mcp.config import PipelineConfig, load_config
-from scrub_mcp.pipeline import run_pipeline, configure_dspy
-from scrub_mcp.models import HygieneReport
-from scrub_mcp.modules.hygiene import CommentWriter, DocstringGenerator, TypeAnnotator
-from scrub_mcp.tools.linter import run_ruff
-from scrub_mcp.tools.parser import extract_functions
-from scrub_mcp.tools.complexity import analyze_file_complexity
-from scrub_mcp.tools.dead_code import find_dead_code
-from scrub_mcp.tools.imports import analyze_imports_deterministic, fix_imports_ruff
-from scrub_mcp.tools.savings import estimate_savings
-from scrub_mcp.tools.security import run_bandit
-from scrub_mcp.tools.sbom import generate_sbom
-from scrub_mcp.tools.vulnscan import scan_components
+from scrub_mcp.config import load_config
 from scrub_mcp.modules.coding_tools import (
     BatchTestGenerator,
     ComplexityReducer,
@@ -39,6 +27,16 @@ from scrub_mcp.modules.coding_tools import (
     SecurityRemediationAdvisor,
     TestGenerator,
 )
+from scrub_mcp.pipeline import configure_dspy, run_pipeline
+from scrub_mcp.tools.complexity import analyze_file_complexity
+from scrub_mcp.tools.dead_code import find_dead_code
+from scrub_mcp.tools.imports import analyze_imports_deterministic, fix_imports_ruff
+from scrub_mcp.tools.linter import run_ruff
+from scrub_mcp.tools.parser import extract_functions
+from scrub_mcp.tools.savings import estimate_savings
+from scrub_mcp.tools.sbom import generate_sbom
+from scrub_mcp.tools.security import run_bandit
+from scrub_mcp.tools.vulnscan import scan_components
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +63,11 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "source": {"type": "string", "description": "Python source code"},
-                    "file_path": {"type": "string", "description": "Path to the .py file (used to skip non-Python files)", "default": ""},
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the .py file (used to skip non-Python files)",
+                        "default": "",
+                    },
                 },
                 "required": ["source"],
             },
@@ -83,7 +85,11 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "source": {"type": "string", "description": "Python source code"},
-                    "file_path": {"type": "string", "description": "Path to the .py file (used to skip non-Python files)", "default": ""},
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the .py file (used to skip non-Python files)",
+                        "default": "",
+                    },
                     "style": {
                         "type": "string",
                         "description": "Docstring style: google, numpy, sphinx",
@@ -106,7 +112,11 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "source": {"type": "string", "description": "Python source code"},
-                    "file_path": {"type": "string", "description": "Path to the .py file (used to skip non-Python files)", "default": ""},
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the .py file (used to skip non-Python files)",
+                        "default": "",
+                    },
                 },
                 "required": ["source"],
             },
@@ -125,7 +135,11 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "source": {"type": "string", "description": "Python source code"},
-                    "file_path": {"type": "string", "description": "Path to the .py file (used to skip non-Python files)", "default": ""},
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the .py file (used to skip non-Python files)",
+                        "default": "",
+                    },
                 },
                 "required": ["source"],
             },
@@ -175,7 +189,11 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "source": {"type": "string", "description": "Python source code"},
-                    "file_path": {"type": "string", "description": "Path to the .py file (used to skip non-Python files)", "default": ""},
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the .py file (used to skip non-Python files)",
+                        "default": "",
+                    },
                 },
                 "required": ["source"],
             },
@@ -194,7 +212,11 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "source": {"type": "string", "description": "Python source code"},
-                    "file_path": {"type": "string", "description": "Path to the .py file (used to skip non-Python files)", "default": ""},
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the .py file (used to skip non-Python files)",
+                        "default": "",
+                    },
                     "function_name": {
                         "type": "string",
                         "description": "Target a specific function. Omit to process all flagged functions.",
@@ -218,7 +240,11 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "source": {"type": "string", "description": "Python source code"},
-                    "file_path": {"type": "string", "description": "Path to the .py file (used to skip non-Python files)", "default": ""},
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the .py file (used to skip non-Python files)",
+                        "default": "",
+                    },
                     "infer_missing": {
                         "type": "boolean",
                         "description": "Use LLM to infer missing imports. Default: true.",
@@ -242,7 +268,11 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "source": {"type": "string", "description": "Python source code"},
-                    "file_path": {"type": "string", "description": "Path to the .py file (used to skip non-Python files)", "default": ""},
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the .py file (used to skip non-Python files)",
+                        "default": "",
+                    },
                     "module_path": {
                         "type": "string",
                         "description": "Import path for the module under test (e.g., 'mypackage.utils').",
@@ -276,7 +306,11 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "source": {"type": "string", "description": "Python source code"},
-                    "file_path": {"type": "string", "description": "Path to the .py file (used to skip non-Python files)", "default": ""},
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the .py file (used to skip non-Python files)",
+                        "default": "",
+                    },
                 },
                 "required": ["source"],
             },
@@ -295,7 +329,11 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "source": {"type": "string", "description": "Python source code"},
-                    "file_path": {"type": "string", "description": "Path to the .py file (used to skip non-Python files)", "default": ""},
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the .py file (used to skip non-Python files)",
+                        "default": "",
+                    },
                     "function_name": {
                         "type": "string",
                         "description": "Target a specific function. Omit to analyze all.",
@@ -321,7 +359,11 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "source": {"type": "string", "description": "Python source code"},
-                    "file_path": {"type": "string", "description": "Path to the .py file (used to skip non-Python files)", "default": ""},
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the .py file (used to skip non-Python files)",
+                        "default": "",
+                    },
                     "severity": {
                         "type": "string",
                         "description": "Minimum severity: low, medium, high. Default: low.",
@@ -356,7 +398,11 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "source": {"type": "string", "description": "Python source code"},
-                    "file_path": {"type": "string", "description": "Path to the .py file (used to skip non-Python files)", "default": ""},
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the .py file (used to skip non-Python files)",
+                        "default": "",
+                    },
                     "severity": {
                         "type": "string",
                         "description": "Minimum severity to remediate: low, medium, high. Default: medium.",
@@ -516,6 +562,32 @@ async def list_tools() -> list[Tool]:
                 "required": ["patterns"],
             },
         ),
+        # ── Architecture exploration ──
+        Tool(
+            name="explore_architecture",
+            description=(
+                "CALL THIS FIRST when planning any change to a file or directory you haven't read yet. "
+                "Returns a token-efficient skeleton of a Python file or directory: class/function "
+                "signatures, one-line docstrings, and line ranges — bodies replaced with '...'. "
+                "Entire project fits in ~500 tokens. Use read_files with the returned line numbers "
+                "for surgical body reads. Supersedes paginating through large files."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "File path or directory to skeletonize.",
+                    },
+                    "include_private": {
+                        "type": "boolean",
+                        "description": "Include private (_name) functions. Default: false.",
+                        "default": False,
+                    },
+                },
+                "required": ["path"],
+            },
+        ),
         # ── Batch tool ──
         Tool(
             name="hygiene_batch",
@@ -552,10 +624,20 @@ async def list_tools() -> list[Tool]:
 
 
 _PYTHON_TOOLS = {
-    "lint_file", "generate_docstrings", "annotate_types", "add_comments",
-    "hygiene_full", "hygiene_batch", "analyze_complexity", "suggest_simplifications",
-    "optimize_imports", "generate_tests", "find_dead_code", "suggest_refactoring",
-    "security_scan", "security_remediate",
+    "lint_file",
+    "generate_docstrings",
+    "annotate_types",
+    "add_comments",
+    "hygiene_full",
+    "hygiene_batch",
+    "analyze_complexity",
+    "suggest_simplifications",
+    "optimize_imports",
+    "generate_tests",
+    "find_dead_code",
+    "suggest_refactoring",
+    "security_scan",
+    "security_remediate",
 }
 
 
@@ -568,10 +650,14 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     if name in _PYTHON_TOOLS:
         file_path_arg = arguments.get("file_path", "")
         if file_path_arg and not file_path_arg.endswith(".py"):
-            return [TextContent(
-                type="text",
-                text=json.dumps({"skipped": True, "reason": f"Not a Python file: {file_path_arg}"}),
-            )]
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {"skipped": True, "reason": f"Not a Python file: {file_path_arg}"}
+                    ),
+                )
+            ]
 
     try:
         if name == "lint_file":
@@ -586,7 +672,12 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                             "auto_fixed": result.auto_fixed,
                             "remaining_issues": result.remaining_issues,
                             "source": fixed_source,
-                            "savings": estimate_savings(source, result.auto_fixed),
+                            "savings": estimate_savings(
+                                source,
+                                result.auto_fixed,
+                                CONFIG.savings.price_per_mtoken,
+                                CONFIG.savings.currency_unit,
+                            ),
                             "telemetry": {
                                 "engine": "Ruff (S.C.R.U.B. internal strict profile)",
                                 "active_rules": CONFIG.ruff.select,
@@ -614,7 +705,12 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                             "docstrings_added": len(report.docstrings),
                             "functions": [d.function_name for d in report.docstrings],
                             "source": report.modified_source,
-                            "savings": estimate_savings(source, len(report.docstrings)),
+                            "savings": estimate_savings(
+                                source,
+                                len(report.docstrings),
+                                CONFIG.savings.price_per_mtoken,
+                                CONFIG.savings.currency_unit,
+                            ),
                         },
                         indent=2,
                     ),
@@ -635,7 +731,12 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                             "annotations_added": len(report.type_annotations),
                             "functions": [a.function_name for a in report.type_annotations],
                             "source": report.modified_source,
-                            "savings": estimate_savings(source, len(report.type_annotations)),
+                            "savings": estimate_savings(
+                                source,
+                                len(report.type_annotations),
+                                CONFIG.savings.price_per_mtoken,
+                                CONFIG.savings.currency_unit,
+                            ),
                         },
                         indent=2,
                     ),
@@ -655,7 +756,12 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                         {
                             "comments_added": len(report.comments),
                             "source": report.modified_source,
-                            "savings": estimate_savings(source, len(report.comments)),
+                            "savings": estimate_savings(
+                                source,
+                                len(report.comments),
+                                CONFIG.savings.price_per_mtoken,
+                                CONFIG.savings.currency_unit,
+                            ),
                         },
                         indent=2,
                     ),
@@ -673,7 +779,12 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
             report = run_pipeline(source, file_path, run_config, steps)
             lint_fixed = report.lint.auto_fixed if report.lint else 0
-            total_fixes = lint_fixed + len(report.docstrings) + len(report.type_annotations) + len(report.comments)
+            total_fixes = (
+                lint_fixed
+                + len(report.docstrings)
+                + len(report.type_annotations)
+                + len(report.comments)
+            )
             return [
                 TextContent(
                     type="text",
@@ -685,7 +796,12 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                             "type_annotations_added": len(report.type_annotations),
                             "comments_added": len(report.comments),
                             "source": report.modified_source,
-                            "savings": estimate_savings(source, total_fixes),
+                            "savings": estimate_savings(
+                                source,
+                                total_fixes,
+                                CONFIG.savings.price_per_mtoken,
+                                CONFIG.savings.currency_unit,
+                            ),
                             "telemetry": {
                                 "engine": "Ruff (S.C.R.U.B. internal strict profile)",
                                 "active_rules": run_config.ruff.select,
@@ -722,7 +838,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             return [TextContent(type="text", text=json.dumps(results, indent=2))]
 
         elif name == "find_symbols":
-            from scrub_mcp.tools.parser import extract_functions_from_file, extract_classes
+            from scrub_mcp.tools.parser import extract_classes, extract_functions_from_file
+
             paths = arguments.get("paths", [])
             include_bodies = arguments.get("include_bodies", False)
             results = {}
@@ -770,6 +887,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         elif name == "grep_multi":
             import re as _re
             import subprocess
+
             patterns = arguments.get("patterns", [])
             search_paths = arguments.get("paths", ["."])
             context_lines = arguments.get("context_lines", 2)
@@ -792,12 +910,16 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                             obj = json.loads(line)
                             if obj.get("type") == "match":
                                 data = obj["data"]
-                                matches.append({
-                                    "file": data["path"]["text"],
-                                    "line": data["line_number"],
-                                    "text": data["lines"]["text"].rstrip(),
-                                    "submatches": [m["match"]["text"] for m in data.get("submatches", [])],
-                                })
+                                matches.append(
+                                    {
+                                        "file": data["path"]["text"],
+                                        "line": data["line_number"],
+                                        "text": data["lines"]["text"].rstrip(),
+                                        "submatches": [
+                                            m["match"]["text"] for m in data.get("submatches", [])
+                                        ],
+                                    }
+                                )
                         except (json.JSONDecodeError, KeyError):
                             continue
                 except subprocess.TimeoutExpired:
@@ -808,7 +930,11 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                         rx = _re.compile(pattern)
                         for sp in search_paths:
                             sp_path = Path(sp)
-                            file_iter = sp_path.rglob(include_glob or "*") if sp_path.is_dir() else [sp_path]
+                            file_iter = (
+                                sp_path.rglob(include_glob or "*")
+                                if sp_path.is_dir()
+                                else [sp_path]
+                            )
                             for fp in file_iter:
                                 if not fp.is_file():
                                     continue
@@ -818,7 +944,13 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                                         if len(matches) >= max_matches:
                                             break
                                         if rx.search(text):
-                                            matches.append({"file": str(fp), "line": i + 1, "text": text.rstrip()})
+                                            matches.append(
+                                                {
+                                                    "file": str(fp),
+                                                    "line": i + 1,
+                                                    "text": text.rstrip(),
+                                                }
+                                            )
                                 except OSError:
                                     continue
                     except _re.error as e:
@@ -827,51 +959,107 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             return [TextContent(type="text", text=json.dumps(all_results, indent=2))]
 
         elif name == "hygiene_batch":
-            from scrub_mcp.pipeline import run_pipeline_on_file
+            from scrub_mcp.pipeline import run_pipeline_batch_parallel
+
             paths = arguments.get("paths", [])
             steps_arg = arguments.get("steps")
             steps_set = set(steps_arg) if steps_arg else None
             write = arguments.get("write", False)
 
-            results = []
-            for p in paths:
-                if not p.endswith(".py"):
-                    results.append({"file_path": p, "skipped": True, "reason": "not a .py file"})
-                    continue
-                fp = Path(p)
-                if not fp.exists():
-                    results.append({"file_path": p, "skipped": True, "reason": "file not found"})
-                    continue
-                try:
-                    file_source = fp.read_text(encoding="utf-8")
-                    rpt = run_pipeline_on_file(fp, config=CONFIG, steps=steps_set, write=write)
-                    lint_fixed = rpt.lint.auto_fixed if rpt.lint else 0
-                    file_fixes = lint_fixed + len(rpt.docstrings) + len(rpt.type_annotations) + len(rpt.comments)
-                    entry: dict = {
-                        "file_path": p,
-                        "docstrings_added": len(rpt.docstrings),
-                        "types_added": len(rpt.type_annotations),
-                        "comments_added": len(rpt.comments),
-                        "savings": estimate_savings(file_source, file_fixes),
-                    }
-                    if rpt.lint:
-                        entry["lint_violations_fixed"] = rpt.lint.auto_fixed
-                    if not write:
-                        entry["source"] = rpt.modified_source
-                    results.append(entry)
-                except Exception as exc:
-                    results.append({"file_path": p, "error": str(exc)})
+            # Separate skipped paths from valid ones up front
+            skipped = [
+                {"file_path": p, "skipped": True, "reason": "not a .py file"}
+                for p in paths if not p.endswith(".py")
+            ]
+            skipped += [
+                {"file_path": p, "skipped": True, "reason": "file not found"}
+                for p in paths if p.endswith(".py") and not Path(p).exists()
+            ]
 
-            total_tokens_saved = sum(r.get("savings", {}).get("tokens_saved", 0) for r in results if "savings" in r)
-            total_cost_usd = sum(r.get("savings", {}).get("est_cost_usd", 0.0) for r in results if "savings" in r)
-            return [TextContent(
-                type="text",
-                text=json.dumps({
-                    "files_processed": len(results),
-                    "aggregate_savings": {"tokens_saved": total_tokens_saved, "est_cost_usd": round(total_cost_usd, 4)},
-                    "results": results,
-                }, indent=2),
-            )]
+            valid_paths = [p for p in paths if p.endswith(".py") and Path(p).exists()]
+            pipeline_results = run_pipeline_batch_parallel(
+                valid_paths, config=CONFIG, steps=steps_set, write=write
+            )
+
+            results: list[dict] = list(skipped)
+            for p, rpt_or_exc in zip(valid_paths, pipeline_results):
+                if rpt_or_exc is None:
+                    results.append({"file_path": p, "skipped": True, "reason": "unknown"})
+                    continue
+                if isinstance(rpt_or_exc, Exception):
+                    results.append({"file_path": p, "error": str(rpt_or_exc)})
+                    continue
+                rpt = rpt_or_exc
+                try:
+                    file_source = Path(p).read_text(encoding="utf-8") if write else (rpt.modified_source or "")
+                except Exception:
+                    file_source = ""
+                lint_fixed = rpt.lint.auto_fixed if rpt.lint else 0
+                file_fixes = lint_fixed + len(rpt.docstrings) + len(rpt.type_annotations) + len(rpt.comments)
+                entry: dict = {
+                    "file_path": p,
+                    "docstrings_added": len(rpt.docstrings),
+                    "types_added": len(rpt.type_annotations),
+                    "comments_added": len(rpt.comments),
+                    "savings": estimate_savings(
+                        file_source,
+                        file_fixes,
+                        CONFIG.savings.price_per_mtoken,
+                        CONFIG.savings.currency_unit,
+                    ),
+                }
+                if rpt.lint:
+                    entry["lint_violations_fixed"] = rpt.lint.auto_fixed
+                if not write:
+                    entry["source"] = rpt.modified_source
+                results.append(entry)
+
+            total_tokens_saved = sum(
+                r.get("savings", {}).get("tokens_saved", 0) for r in results if "savings" in r
+            )
+            total_est_cost = sum(
+                r.get("savings", {}).get("est_cost", 0.0) for r in results if "savings" in r
+            )
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {
+                            "files_processed": len(results),
+                            "aggregate_savings": {
+                                "tokens_saved": total_tokens_saved,
+                                "est_cost": round(total_est_cost, 4),
+                                "currency": CONFIG.savings.currency_unit,
+                            },
+                            "results": results,
+                        },
+                        indent=2,
+                    ),
+                )
+            ]
+
+        # ── Architecture exploration handler ──
+
+        elif name == "explore_architecture":
+            from scrub_mcp.tools.parser import skeletonize
+            target = Path(arguments["path"])
+            include_private = arguments.get("include_private", False)
+            if target.is_dir():
+                parts: list[str] = []
+                for py_file in sorted(target.rglob("*.py")):
+                    try:
+                        src = py_file.read_text(encoding="utf-8")
+                        parts.append(f"\n## {py_file}\n")
+                        parts.append(skeletonize(src, str(py_file)))
+                    except Exception:
+                        logger.debug("[explore_architecture] Skipping %s", py_file)
+                result = "\n".join(parts)
+            elif target.is_file() and target.suffix == ".py":
+                src = target.read_text(encoding="utf-8")
+                result = skeletonize(src, str(target))
+            else:
+                result = f"# {arguments['path']}: not found or not a .py file / directory"
+            return [TextContent(type="text", text=result)]
 
         # ── Coding tool handlers ──
 
@@ -907,6 +1095,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 if target and func.name != target:
                     continue
                 from scrub_mcp.tools.complexity import analyze_complexity
+
                 metrics = analyze_complexity(func)
                 if not metrics.needs_simplification and not target:
                     continue
@@ -930,7 +1119,12 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                         {
                             "simplifications": results,
                             "functions_analyzed": len(results),
-                            "savings": estimate_savings(source, fixes),
+                            "savings": estimate_savings(
+                                source,
+                                fixes,
+                                CONFIG.savings.price_per_mtoken,
+                                CONFIG.savings.currency_unit,
+                            ),
                         },
                         indent=2,
                     ),
@@ -956,6 +1150,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 configure_dspy(CONFIG)
                 inferrer = MissingImportInferrer()
                 from scrub_mcp.tools.parser import extract_module_info
+
                 mod_info = extract_module_info(fixed_source)
                 raw = inferrer(
                     source_code=fixed_source,
@@ -966,9 +1161,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 except json.JSONDecodeError:
                     result_data["inferred_imports"] = []
 
-            return [
-                TextContent(type="text", text=json.dumps(result_data, indent=2))
-            ]
+            return [TextContent(type="text", text=json.dumps(result_data, indent=2))]
 
         elif name == "generate_tests":
             configure_dspy(CONFIG)
@@ -992,22 +1185,37 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
             if len(funcs) <= bs and bs > 1:
                 gen = BatchTestGenerator()
-                payload = json.dumps([
-                    {"name": f.name, "signature": f.signature, "body": f.body[:2000],
-                     "docstring": f.existing_docstring or "", "parent_class": f.parent_class or ""}
-                    for f in funcs
-                ])
+                payload = json.dumps(
+                    [
+                        {
+                            "name": f.name,
+                            "signature": f.signature,
+                            "body": f.body[:2000],
+                            "docstring": f.existing_docstring or "",
+                            "parent_class": f.parent_class or "",
+                        }
+                        for f in funcs
+                    ]
+                )
                 all_code_parts.append(gen(functions_json=payload))
                 covered = [f.name for f in funcs]
             elif bs > 1:
                 from scrub_mcp.tools.utils import batch as batch_fn
+
                 gen = BatchTestGenerator()
                 for func_batch in batch_fn(funcs, bs):
-                    payload = json.dumps([
-                        {"name": f.name, "signature": f.signature, "body": f.body[:2000],
-                         "docstring": f.existing_docstring or "", "parent_class": f.parent_class or ""}
-                        for f in func_batch
-                    ])
+                    payload = json.dumps(
+                        [
+                            {
+                                "name": f.name,
+                                "signature": f.signature,
+                                "body": f.body[:2000],
+                                "docstring": f.existing_docstring or "",
+                                "parent_class": f.parent_class or "",
+                            }
+                            for f in func_batch
+                        ]
+                    )
                     all_code_parts.append(gen(functions_json=payload))
                     covered.extend(f.name for f in func_batch)
             else:
@@ -1033,7 +1241,12 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                             "test_count": test_count,
                             "functions_covered": covered,
                             "test_code": combined_code,
-                            "savings": estimate_savings(source, test_count),
+                            "savings": estimate_savings(
+                                source,
+                                test_count,
+                                CONFIG.savings.price_per_mtoken,
+                                CONFIG.savings.currency_unit,
+                            ),
                         },
                         indent=2,
                     ),
@@ -1069,17 +1282,23 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                     continue
 
                 try:
-                    extractions = json.loads(extract_advisor(
-                        function_signature=func.signature,
-                        function_body=func.body,
-                    ) or "[]")
+                    extractions = json.loads(
+                        extract_advisor(
+                            function_signature=func.signature,
+                            function_body=func.body,
+                        )
+                        or "[]"
+                    )
                 except json.JSONDecodeError:
                     extractions = []
                 try:
-                    renames = json.loads(rename_advisor(
-                        code_block=func.body,
-                        context=func.signature,
-                    ) or "[]")
+                    renames = json.loads(
+                        rename_advisor(
+                            code_block=func.body,
+                            context=func.signature,
+                        )
+                        or "[]"
+                    )
                 except json.JSONDecodeError:
                     renames = []
 
@@ -1097,7 +1316,12 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                         {
                             "functions_analyzed": len(results),
                             "refactoring": results,
-                            "savings": estimate_savings(source, fixes),
+                            "savings": estimate_savings(
+                                source,
+                                fixes,
+                                CONFIG.savings.price_per_mtoken,
+                                CONFIG.savings.currency_unit,
+                            ),
                         },
                         indent=2,
                     ),
@@ -1154,9 +1378,14 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 file_context_parts.append("This is a test file.")
             if any("if __name__" in line for line in source_lines):
                 file_context_parts.append("This file has a CLI entrypoint.")
-            if any("app = " in line or "Flask(" in line or "FastAPI(" in line for line in source_lines[:30]):
+            if any(
+                "app = " in line or "Flask(" in line or "FastAPI(" in line
+                for line in source_lines[:30]
+            ):
                 file_context_parts.append("This is a web application.")
-            file_context = " ".join(file_context_parts) if file_context_parts else "General Python module."
+            file_context = (
+                " ".join(file_context_parts) if file_context_parts else "General Python module."
+            )
 
             # Step 3: DSPy triage + remediation for each finding (local LLM)
             configure_dspy(CONFIG)
@@ -1184,13 +1413,15 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                     logger.exception(
                         "Triage failed for %s at line %d", finding.test_id, finding.line_number
                     )
-                    triage_results["rewrite"].append({
-                        "test_id": finding.test_id,
-                        "verdict": "rewrite",
-                        "confidence": 0.0,
-                        "description": finding.description,
-                        "rationale": "Triage failed, defaulting to rewrite for safety.",
-                    })
+                    triage_results["rewrite"].append(
+                        {
+                            "test_id": finding.test_id,
+                            "verdict": "rewrite",
+                            "confidence": 0.0,
+                            "description": finding.description,
+                            "rationale": "Triage failed, defaulting to rewrite for safety.",
+                        }
+                    )
 
             fixes = len(triage_results["rewrite"]) + len(triage_results["nosec"])
             return [
@@ -1207,7 +1438,12 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                             "rewrite": triage_results["rewrite"],
                             "nosec": triage_results["nosec"],
                             "accept_risk": triage_results["accept_risk"],
-                            "savings": estimate_savings(source, fixes),
+                            "savings": estimate_savings(
+                                source,
+                                fixes,
+                                CONFIG.savings.price_per_mtoken,
+                                CONFIG.savings.currency_unit,
+                            ),
                         },
                         indent=2,
                     ),

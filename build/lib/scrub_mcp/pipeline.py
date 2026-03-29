@@ -2,11 +2,13 @@
 
 Flow:
 1. Ruff lint + autofix (deterministic, no LLM)
-2. AST parse: modules, classes, functions (deterministic)
+2. AST parse: modules, classes, functions (deterministic, single parse shared)
 3. Pre-filter: skip anything that already has docstrings/types (deterministic)
-4. Batch remaining work into N-function chunks
+   - File-level pyright/pydocstyle: 1 subprocess per tool per file (not per function)
+4. Batch remaining work into N-function chunks (adaptive sizing)
 5. DSPy modules process each batch in a single LLM call (local Qwen Coder)
-6. Source rewriter applies all changes
+   - Results applied per-batch; failed batches retry per-function
+6. Source rewriter applies all changes (bottom-up, line-number stable)
 
 Latency math (batch_size=5, 30 functions needing docstrings + types):
     Without batching: 60 LLM calls
@@ -18,6 +20,8 @@ from __future__ import annotations
 
 import json
 import logging
+import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import dspy
@@ -40,7 +44,7 @@ from scrub_mcp.modules.hygiene import (
     TypeAnnotator,
 )
 from scrub_mcp.tools.linter import run_ruff
-from scrub_mcp.tools.parser import extract_classes, extract_functions, extract_module_info
+from scrub_mcp.tools.parser import extract_classes, extract_functions, extract_module_info, parse_source
 from scrub_mcp.tools.rewriter import (
     apply_class_docstrings,
     apply_docstrings,
@@ -48,6 +52,8 @@ from scrub_mcp.tools.rewriter import (
     apply_type_annotations,
 )
 from scrub_mcp.utils import (
+    _pydocstyle_file_check,
+    _pyright_file_check,
     batch,
     needs_class_docstring,
     needs_docstring,
@@ -55,6 +61,8 @@ from scrub_mcp.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+_TEST_PATTERN = re.compile(r"(^|[/\\])(test_.*|.*_test|conftest)\.py$")
 
 
 def configure_dspy(config: PipelineConfig) -> None:
@@ -82,6 +90,28 @@ def configure_dspy(config: PipelineConfig) -> None:
         )
     dspy.configure(lm=lm)
 
+    # Keep-alive ping: prevents Ollama's 5-min idle timeout from expiring during
+    # a long deterministic pre-filter phase before the first real LLM call.
+    if config.model.provider == "ollama":
+        try:
+            lm("ping", max_tokens=1)
+        except Exception:
+            pass  # non-fatal; model will cold-load on first real call if needed
+
+
+def _compute_adaptive_batch_size(funcs: list[FunctionInfo], config: PipelineConfig) -> int:
+    """Return an adaptive batch size based on average function body length.
+
+    Short functions get larger batches (more per call); long functions get
+    smaller batches to stay within the model's context window.
+    """
+    if not funcs or not config.adaptive_batch:
+        return config.batch_size
+    avg_lines = sum(f.body_line_count for f in funcs) / len(funcs)
+    # ~5 tokens per line heuristic
+    funcs_per_target = max(1, int(config.target_batch_tokens / max(1, avg_lines * 5)))
+    return min(funcs_per_target, config.max_batch_size)
+
 
 def run_pipeline(
     source: str,
@@ -100,10 +130,10 @@ def run_pipeline(
 
     Returns:
         HygieneReport with modified source and per-step details.
+
     """
     cfg = config or load_config()
     all_steps = steps or {"lint", "docstrings", "types", "comments"}
-    bs = cfg.batch_size
 
     report = HygieneReport(file_path=file_path)
     working_source = source
@@ -120,21 +150,31 @@ def run_pipeline(
             lint_result.violations_after,
         )
 
-    # ── Step 2: Parse everything (deterministic) ──
-    module_info = extract_module_info(working_source)
-    classes = extract_classes(working_source)
+    # ── Step 2: Parse everything (deterministic, single AST parse shared) ──
+    tree = parse_source(working_source)
+    module_info = extract_module_info(working_source, tree=tree)
+    classes = extract_classes(working_source, tree=tree)
     functions = extract_functions(
         working_source,
         skip_private=cfg.skip_private,
         skip_dunder=cfg.skip_dunder,
+        tree=tree,
     )
 
     # ── Step 3: Pre-filter (deterministic, no LLM) ──
-    # Each filter tier only runs when its step is requested.
-    # Tier 1 (AST): presence check, free.
-    # Tier 2 (pydocstyle/pyright): quality check, subprocess.
-    # Both tiers gated: no wasted cycles on steps you didn't ask for.
+    # File-level checks: run pyright/pydocstyle once on the whole file (O(1) subprocesses),
+    # then map diagnostics to function line ranges.
     use_tools = cfg.deterministic_prefilter
+    real_path = file_path if file_path != "<stdin>" else None
+
+    pydocstyle_failing: set[str] = set()
+    pyright_failing: set[str] = set()
+
+    if use_tools and "docstrings" in all_steps:
+        pydocstyle_failing = _pydocstyle_file_check(working_source, functions, real_path)
+
+    if use_tools and "types" in all_steps:
+        pyright_failing = _pyright_file_check(working_source, functions, real_path)
 
     funcs_needing_docs: list[FunctionInfo] = []
     funcs_needing_types: list[FunctionInfo] = []
@@ -143,34 +183,43 @@ def run_pipeline(
     if "docstrings" in all_steps:
         funcs_needing_docs = [
             f for f in functions
-            if needs_docstring(f, use_pydocstyle=use_tools)
+            if needs_docstring(f, use_pydocstyle=False) or f.name in pydocstyle_failing
         ]
         classes_needing_docs = [
-            c for c in classes
-            if needs_class_docstring(c, use_pydocstyle=use_tools)
+            c for c in classes if needs_class_docstring(c, use_pydocstyle=use_tools)
         ]
         logger.info(
             "[pre-filter:docstrings] %d/%d functions, %d/%d classes need work (%d skipped)",
-            len(funcs_needing_docs), len(functions),
-            len(classes_needing_docs), len(classes),
+            len(funcs_needing_docs),
+            len(functions),
+            len(classes_needing_docs),
+            len(classes),
             len(functions) - len(funcs_needing_docs),
         )
 
     if "types" in all_steps:
-        funcs_needing_types = [
-            f for f in functions
-            if needs_type_annotations(f, use_pyright=use_tools)
-        ]
+        # Skip test files for type annotation (they're conventionally untyped)
+        if cfg.skip_test_types and real_path and _TEST_PATTERN.search(real_path):
+            funcs_needing_types = []
+            logger.info("[pre-filter:types] Skipping test file %s", file_path)
+        else:
+            funcs_needing_types = [
+                f for f in functions
+                if needs_type_annotations(f, use_pyright=False) or f.name in pyright_failing
+            ]
         logger.info(
             "[pre-filter:types] %d/%d functions need annotations (%d skipped)",
-            len(funcs_needing_types), len(functions),
+            len(funcs_needing_types),
+            len(functions),
             len(functions) - len(funcs_needing_types),
         )
 
     # ── Step 4: DSPy modules (batched, local Qwen Coder) ──
     # Only spin up the LLM connection if there's actual work to do.
-    has_doc_work = funcs_needing_docs or classes_needing_docs or (
-        cfg.docstring_all_modules and not module_info.existing_docstring
+    has_doc_work = (
+        funcs_needing_docs
+        or classes_needing_docs
+        or (cfg.docstring_all_modules and not module_info.existing_docstring)
     )
     has_type_work = bool(funcs_needing_types)
     has_comment_work = "comments" in all_steps and functions
@@ -211,22 +260,37 @@ def run_pipeline(
                     logger.exception("[docstrings] Class docstring failed for %s", cls.name)
             working_source = apply_class_docstrings(working_source, class_docs)
 
-        # Function/method docstrings (BATCHED)
+        # Function/method docstrings (BATCHED, adaptive size, streaming per-batch apply)
         if funcs_needing_docs:
+            bs = _compute_adaptive_batch_size(funcs_needing_docs, cfg)
             batches = batch(funcs_needing_docs, bs)
             logger.info(
                 "[docstrings] %d functions in %d batches (batch_size=%d)",
-                len(funcs_needing_docs), len(batches), bs,
+                len(funcs_needing_docs),
+                len(batches),
+                bs,
             )
 
             if bs > 1:
                 batch_gen = BatchDocstringGenerator()
                 for i, func_batch in enumerate(batches):
                     try:
-                        payload = json.dumps([
-                            {"name": f.name, "signature": f.signature, "body": f.body[:2000], "parent_class": f.parent_class or ""}
-                            for f in func_batch
-                        ])
+                        payload = json.dumps(
+                            [
+                                {
+                                    "name": f.name,
+                                    "signature": f.signature,
+                                    # Signature-only mode: skip body for short functions
+                                    "body": (
+                                        ""
+                                        if f.body_line_count < cfg.signature_only_threshold
+                                        else f.body[:2000]
+                                    ),
+                                    "parent_class": f.parent_class or "",
+                                }
+                                for f in func_batch
+                            ]
+                        )
                         raw = batch_gen(functions_json=payload)
                         parsed = json.loads(raw) if raw else {}
                         docs = [
@@ -236,29 +300,48 @@ def run_pipeline(
                                 style="google",
                                 target_type="function",
                             )
-                            for f in func_batch if parsed.get(f.name)
+                            for f in func_batch
+                            if parsed.get(f.name)
                         ]
                         report.docstrings.extend(docs)
-                        logger.info("[docstrings] Batch %d/%d: %d docstrings", i + 1, len(batches), len(docs))
+                        # Apply immediately (streaming) — bottom-up order preserved by rewriter
+                        working_source = apply_docstrings(working_source, docs)
+                        logger.info(
+                            "[docstrings] Batch %d/%d: %d docstrings applied",
+                            i + 1,
+                            len(batches),
+                            len(docs),
+                        )
                     except Exception:
-                        logger.exception("[docstrings] Batch %d failed, falling back to sequential", i + 1)
+                        logger.exception(
+                            "[docstrings] Batch %d failed, falling back to sequential", i + 1
+                        )
                         single_gen = DocstringGenerator()
                         for func in func_batch:
                             try:
                                 text = single_gen(
                                     function_signature=func.signature,
-                                    function_body=func.body,
+                                    function_body=(
+                                        ""
+                                        if func.body_line_count < cfg.signature_only_threshold
+                                        else func.body
+                                    ),
                                     decorators=", ".join(func.decorators),
                                     parent_class=func.parent_class or "",
                                 )
-                                report.docstrings.append(GeneratedDocstring(
+                                doc = GeneratedDocstring(
                                     function_name=func.name,
                                     docstring=text,
                                     style="google",
                                     target_type="function",
-                                ))
+                                )
+                                report.docstrings.append(doc)
+                                working_source = apply_docstrings(working_source, [doc])
                             except Exception:
-                                logger.exception("[docstrings] Sequential fallback failed for %s", func.name)
+                                logger.warning(
+                                    "[docstrings] Skipping %s after both batch and solo failed",
+                                    func.name,
+                                )
             else:
                 # batch_size=1: sequential mode
                 single_gen = DocstringGenerator()
@@ -266,36 +349,45 @@ def run_pipeline(
                     try:
                         text = single_gen(
                             function_signature=func.signature,
-                            function_body=func.body,
+                            function_body=(
+                                ""
+                                if func.body_line_count < cfg.signature_only_threshold
+                                else func.body
+                            ),
                             decorators=", ".join(func.decorators),
                             parent_class=func.parent_class or "",
                         )
-                        report.docstrings.append(GeneratedDocstring(
+                        doc = GeneratedDocstring(
                             function_name=func.name,
                             docstring=text,
                             style="google",
                             target_type="function",
-                        ))
+                        )
+                        report.docstrings.append(doc)
+                        working_source = apply_docstrings(working_source, [doc])
                     except Exception:
                         logger.exception("[docstrings] Failed for %s", func.name)
 
-            working_source = apply_docstrings(working_source, report.docstrings)
-
     if "types" in all_steps and funcs_needing_types:
+        bs = _compute_adaptive_batch_size(funcs_needing_types, cfg)
         batches = batch(funcs_needing_types, bs)
         logger.info(
             "[types] %d functions in %d batches (batch_size=%d)",
-            len(funcs_needing_types), len(batches), bs,
+            len(funcs_needing_types),
+            len(batches),
+            bs,
         )
 
         if bs > 1:
             batch_ann = BatchTypeAnnotator()
             for i, func_batch in enumerate(batches):
                 try:
-                    payload = json.dumps([
-                        {"name": f.name, "signature": f.signature, "body": f.body[:2000]}
-                        for f in func_batch
-                    ])
+                    payload = json.dumps(
+                        [
+                            {"name": f.name, "signature": f.signature, "body": f.body[:2000]}
+                            for f in func_batch
+                        ]
+                    )
                     raw = batch_ann(functions_json=payload)
                     parsed_all = json.loads(raw) if raw else {}
                     anns = []
@@ -306,14 +398,20 @@ def run_pipeline(
                         fa.pop("self", None)
                         fa.pop("cls", None)
                         return_type = fa.pop("return", "None")
-                        anns.append(TypeAnnotation(
-                            function_name=f.name,
-                            parameters=fa,
-                            return_type=return_type,
-                            confidence=0.8,
-                        ))
+                        anns.append(
+                            TypeAnnotation(
+                                function_name=f.name,
+                                parameters=fa,
+                                return_type=return_type,
+                                confidence=0.8,
+                            )
+                        )
                     report.type_annotations.extend(anns)
-                    logger.info("[types] Batch %d/%d: %d annotations", i + 1, len(batches), len(anns))
+                    # Apply immediately (streaming)
+                    working_source = apply_type_annotations(working_source, anns)
+                    logger.info(
+                        "[types] Batch %d/%d: %d annotations applied", i + 1, len(batches), len(anns)
+                    )
                 except Exception:
                     logger.exception("[types] Batch %d failed, falling back to sequential", i + 1)
                     single_ann = TypeAnnotator()
@@ -328,14 +426,18 @@ def run_pipeline(
                             fa.pop("self", None)
                             fa.pop("cls", None)
                             return_type = fa.pop("return", "None")
-                            report.type_annotations.append(TypeAnnotation(
+                            ann = TypeAnnotation(
                                 function_name=func.name,
                                 parameters=fa,
                                 return_type=return_type,
                                 confidence=0.8,
-                            ))
+                            )
+                            report.type_annotations.append(ann)
+                            working_source = apply_type_annotations(working_source, [ann])
                         except Exception:
-                            logger.exception("[types] Sequential fallback failed for %s", func.name)
+                            logger.warning(
+                                "[types] Skipping %s after both batch and solo failed", func.name
+                            )
         else:
             single_ann = TypeAnnotator()
             for func in funcs_needing_types:
@@ -349,28 +451,30 @@ def run_pipeline(
                     fa.pop("self", None)
                     fa.pop("cls", None)
                     return_type = fa.pop("return", "None")
-                    report.type_annotations.append(TypeAnnotation(
+                    ann = TypeAnnotation(
                         function_name=func.name,
                         parameters=fa,
                         return_type=return_type,
                         confidence=0.8,
-                    ))
+                    )
+                    report.type_annotations.append(ann)
+                    working_source = apply_type_annotations(working_source, [ann])
                 except Exception:
                     logger.exception("[types] Failed for %s", func.name)
-
-        working_source = apply_type_annotations(working_source, report.type_annotations)
 
     if "comments" in all_steps and functions:
         # Comments are NOT batched: they need full function body context
         # and only fire on complex functions anyway
         commenter = CommentWriter(config=cfg.comments)
         eligible = [
-            f for f in functions
+            f
+            for f in functions
             if commenter.should_comment(f.body_line_count, f.cyclomatic_complexity)
         ]
         logger.info(
             "[comments] %d/%d functions exceed complexity threshold",
-            len(eligible), len(functions),
+            len(eligible),
+            len(functions),
         )
         for func in eligible:
             try:
@@ -380,14 +484,16 @@ def run_pipeline(
                     complexity=func.cyclomatic_complexity,
                 )
                 items = json.loads(raw) if raw else []
-                report.comments.extend([
-                    SemanticComment(
-                        line_number=func.line_start + item.get("line_offset", 0),
-                        comment=item.get("comment", ""),
-                        category=item.get("category", "explanation"),
-                    )
-                    for item in items
-                ])
+                report.comments.extend(
+                    [
+                        SemanticComment(
+                            line_number=func.line_start + item.get("line_offset", 0),
+                            comment=item.get("comment", ""),
+                            category=item.get("category", "explanation"),
+                        )
+                        for item in items
+                    ]
+                )
             except Exception:
                 logger.exception("[comments] Failed for %s", func.name)
 
@@ -411,6 +517,7 @@ def run_pipeline_on_file(
 
     Returns:
         HygieneReport with modified source and per-step details.
+
     """
     source = file_path.read_text(encoding="utf-8")
     report = run_pipeline(source, str(file_path), config, steps)
@@ -420,3 +527,54 @@ def run_pipeline_on_file(
         logger.info("Wrote modified source to %s", file_path)
 
     return report
+
+
+def run_pipeline_batch_parallel(
+    paths: list[str],
+    config: PipelineConfig | None = None,
+    steps: set[str] | None = None,
+    write: bool = False,
+    max_workers: int | None = None,
+) -> list[HygieneReport | Exception | None]:
+    """Run the pipeline on multiple files concurrently.
+
+    Args:
+        paths: File paths to process. Non-.py or missing paths yield None.
+        config: Pipeline config. Loads defaults if None.
+        steps: Which steps to run. None = all.
+        write: If True, overwrite each file with its modified source.
+        max_workers: Thread pool size. Defaults to config.batch_max_workers or 4.
+
+    Returns:
+        List parallel to paths. Each element is a HygieneReport, an Exception
+        (if that file failed), or None (if the path was skipped).
+
+    """
+    cfg = config or load_config()
+    workers = max_workers if max_workers is not None else cfg.batch_max_workers
+
+    results: list[HygieneReport | Exception | None] = [None] * len(paths)
+
+    valid: dict[int, Path] = {
+        i: Path(p)
+        for i, p in enumerate(paths)
+        if p.endswith(".py") and Path(p).exists()
+    }
+
+    if not valid:
+        return results
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {
+            pool.submit(run_pipeline_on_file, fp, cfg, steps, write): i
+            for i, fp in valid.items()
+        }
+        for fut in as_completed(futures):
+            idx = futures[fut]
+            try:
+                results[idx] = fut.result()
+            except Exception as exc:
+                results[idx] = exc
+                logger.exception("[batch_parallel] Failed on %s", paths[idx])
+
+    return results

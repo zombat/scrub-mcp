@@ -21,8 +21,8 @@ from __future__ import annotations
 
 import json
 import logging
-import urllib.request
 import urllib.error
+import urllib.request
 from typing import Any
 
 from scrub_mcp.models import (
@@ -50,10 +50,12 @@ def scan_components(
 
     Returns:
         VulnReport with findings grouped by severity.
+
     """
     # Filter to components with valid PURLs and real versions
     scannable = [
-        c for c in components
+        c
+        for c in components
         if c.purl
         and c.version
         and c.version not in ("unspecified", "")
@@ -116,13 +118,16 @@ def _query_osv_batch(components: list[SBOMComponent]) -> list[VulnFinding]:
 
     Returns:
         List of vulnerability findings.
+
     """
     queries = []
     for comp in components:
-        queries.append({
-            "package": {"purl": comp.purl},
-            "version": comp.version,
-        })
+        queries.append(
+            {
+                "package": {"purl": comp.purl},
+                "version": comp.version,
+            }
+        )
 
     payload = json.dumps({"queries": queries}).encode("utf-8")
 
@@ -167,6 +172,7 @@ def _parse_osv_vuln(vuln: dict[str, Any], comp: SBOMComponent) -> VulnFinding | 
 
     Returns:
         VulnFinding or None if parsing fails.
+
     """
     vuln_id = vuln.get("id", "")
     aliases = vuln.get("aliases", [])
@@ -210,11 +216,9 @@ def _parse_osv_vuln(vuln: dict[str, Any], comp: SBOMComponent) -> VulnFinding | 
                     break
 
     # References
-    references = [
-        ref.get("url", "")
-        for ref in vuln.get("references", [])
-        if ref.get("url")
-    ][:5]  # Cap at 5 URLs
+    references = [ref.get("url", "") for ref in vuln.get("references", []) if ref.get("url")][
+        :5
+    ]  # Cap at 5 URLs
 
     return VulnFinding(
         vuln_id=vuln_id,

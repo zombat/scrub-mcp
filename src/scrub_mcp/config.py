@@ -138,6 +138,44 @@ class PipelineConfig(BaseModel):
     )
     optimizer_cache_dir: str = ".dspy_cache"
 
+    # ── 1.4: Parallel batch processing ──
+    batch_max_workers: int = Field(
+        default=4,
+        description="ThreadPoolExecutor workers for hygiene_batch parallel file processing.",
+    )
+
+    # ── 1.6: Adaptive batch sizing ──
+    adaptive_batch: bool = Field(
+        default=False,
+        description="Adjust batch size based on average function body length.",
+    )
+    max_batch_size: int = Field(
+        default=15,
+        description="Maximum batch size when adaptive_batch is enabled.",
+    )
+    target_batch_tokens: int = Field(
+        default=3000,
+        description="Approximate token budget per batch (used with adaptive_batch).",
+    )
+
+    # ── 1.7: Signature-only mode ──
+    signature_only_threshold: int = Field(
+        default=10,
+        description=(
+            "Functions with body_line_count below this threshold send only the signature "
+            "to the LLM, not the body. Cuts input tokens 50-80% for short functions."
+        ),
+    )
+
+    # ── 1.8: Skip test files for type annotation ──
+    skip_test_types: bool = Field(
+        default=True,
+        description=(
+            "Skip the type annotation step for test_*.py, *_test.py, and conftest.py. "
+            "Test files are conventionally untyped."
+        ),
+    )
+
 
 def load_config(config_path: Path | None = None) -> PipelineConfig:
     """Load config from YAML file, falling back to defaults."""

@@ -9,6 +9,11 @@ from pathlib import Path
 from scrub_mcp.models import ClassInfo, FunctionInfo, ModuleInfo
 
 
+def parse_source(source: str) -> ast.Module:
+    """Parse Python source into an AST module. Call once and pass tree to extractors."""
+    return ast.parse(source)
+
+
 def _cyclomatic_complexity(node: ast.AST) -> int:
     """Rough cyclomatic complexity: count branches and loops."""
     complexity = 1
@@ -28,29 +33,32 @@ def _cyclomatic_complexity(node: ast.AST) -> int:
     return complexity
 
 
-def extract_module_info(source: str) -> ModuleInfo:
+def extract_module_info(source: str, tree: ast.Module | None = None) -> ModuleInfo:
     """Extract module-level metadata."""
-    tree = ast.parse(source)
-    existing_doc = ast.get_docstring(tree)
+    t = tree if tree is not None else ast.parse(source)
+    existing_doc = ast.get_docstring(t)
     return ModuleInfo(
         existing_docstring=existing_doc,
-        imports=[ast.unparse(node) for node in ast.iter_child_nodes(tree)
-                 if isinstance(node, (ast.Import, ast.ImportFrom))],
+        imports=[
+            ast.unparse(node)
+            for node in ast.iter_child_nodes(t)
+            if isinstance(node, (ast.Import, ast.ImportFrom))
+        ],
         top_level_names=[
             node.name
-            for node in ast.iter_child_nodes(tree)
+            for node in ast.iter_child_nodes(t)
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
         ],
     )
 
 
-def extract_classes(source: str) -> list[ClassInfo]:
+def extract_classes(source: str, tree: ast.Module | None = None) -> list[ClassInfo]:
     """Extract class metadata including bases and existing docstrings."""
-    tree = ast.parse(source)
+    t = tree if tree is not None else ast.parse(source)
     source_lines = source.splitlines()
     classes: list[ClassInfo] = []
 
-    for node in ast.iter_child_nodes(tree):
+    for node in ast.iter_child_nodes(t):
         if not isinstance(node, ast.ClassDef):
             continue
 
@@ -58,7 +66,8 @@ def extract_classes(source: str) -> list[ClassInfo]:
         existing_doc = ast.get_docstring(node)
 
         method_names = [
-            n.name for n in ast.iter_child_nodes(node)
+            n.name
+            for n in ast.iter_child_nodes(node)
             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
         ]
 
@@ -86,25 +95,26 @@ def extract_functions(
     source: str,
     skip_private: bool = False,
     skip_dunder: bool = False,
+    tree: ast.Module | None = None,
 ) -> list[FunctionInfo]:
     """Parse Python source and extract all function/method metadata.
 
     Walks the full AST to capture top-level functions AND methods inside
     classes. Computes cyclomatic complexity for comment targeting.
     """
-    tree = ast.parse(source)
+    t = tree if tree is not None else ast.parse(source)
     source_lines = source.splitlines()
     functions: list[FunctionInfo] = []
 
     # Build a parent map for class detection
     parent_map: dict[int, str] = {}
-    for parent in ast.walk(tree):
+    for parent in ast.walk(t):
         if isinstance(parent, ast.ClassDef):
             for child in ast.iter_child_nodes(parent):
                 if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     parent_map[id(child)] = parent.name
 
-    for node in ast.walk(tree):
+    for node in ast.walk(t):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
 
@@ -156,7 +166,7 @@ def extract_functions(
                 decorators=decorators,
                 existing_docstring=existing_doc,
                 existing_annotations=existing_anns,
-                line_start=node.lineno,
+                line_start=(node.decorator_list[0].lineno if node.decorator_list else node.lineno),
                 line_end=body_end,
                 parent_class=parent_class,
                 body_line_count=body_line_count,
@@ -165,6 +175,67 @@ def extract_functions(
         )
 
     return functions
+
+
+def _skeleton_func(node: ast.FunctionDef | ast.AsyncFunctionDef, lines: list[str], indent: int) -> None:
+    """Append a skeletonized function/method line to lines."""
+    pad = " " * indent
+    async_prefix = "async " if isinstance(node, ast.AsyncFunctionDef) else ""
+
+    sig_parts = []
+    for arg in node.args.args:
+        ann = ast.unparse(arg.annotation) if arg.annotation else ""
+        part = f"{arg.arg}: {ann}" if ann else arg.arg
+        sig_parts.append(part)
+
+    returns = ast.unparse(node.returns) if node.returns else ""
+    ret_str = f" -> {returns}" if returns else ""
+    line_range = f"  # L{node.lineno}-{node.end_lineno}"
+
+    lines.append(f"{pad}{async_prefix}def {node.name}({', '.join(sig_parts)}){ret_str}: ...{line_range}")
+
+    doc = ast.get_docstring(node)
+    if doc:
+        first_line = doc.splitlines()[0]
+        lines.append(f'{pad}    """{first_line}"""')
+
+
+def _skeleton_class(node: ast.ClassDef, lines: list[str], indent: int) -> None:
+    """Append a skeletonized class block to lines."""
+    pad = " " * indent
+    bases = [ast.unparse(b) for b in node.bases]
+    base_str = f"({', '.join(bases)})" if bases else ""
+    line_range = f"  # L{node.lineno}-{node.end_lineno}"
+    lines.append(f"{pad}class {node.name}{base_str}:{line_range}")
+
+    doc = ast.get_docstring(node)
+    if doc:
+        first_line = doc.splitlines()[0]
+        lines.append(f'{pad}    """{first_line}"""')
+
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            _skeleton_func(child, lines, indent + 4)
+
+    lines.append("")
+
+
+def skeletonize(source: str, file_path: str = "", tree: ast.Module | None = None) -> str:
+    """Return a token-efficient skeleton: signatures + docstrings, bodies replaced with '...'."""
+    t = tree if tree is not None else parse_source(source)
+    lines: list[str] = []
+    if file_path:
+        lines.append(f"# {file_path}  (skeletonized — use read_files for bodies)")
+        lines.append("")
+
+    for node in ast.iter_child_nodes(t):
+        if isinstance(node, ast.ClassDef):
+            _skeleton_class(node, lines, indent=0)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            _skeleton_func(node, lines, indent=0)
+            lines.append("")
+
+    return "\n".join(lines)
 
 
 def extract_functions_from_file(file_path: Path, **kwargs) -> list[FunctionInfo]:

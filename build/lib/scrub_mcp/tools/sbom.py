@@ -18,7 +18,6 @@ Sources (checked in priority order):
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import re
@@ -148,6 +147,7 @@ def generate_sbom(
 
     Returns:
         SBOMReport with components and formatted output.
+
     """
     project = project_dir or Path.cwd()
     all_components: dict[str, SBOMComponent] = {}
@@ -253,9 +253,7 @@ def _format_cyclonedx(
                 {"name": "source", "value": comp.source},
             ]
             if comp.optional:
-                cdx_comp["properties"].append(
-                    {"name": "optional", "value": "true"}
-                )
+                cdx_comp["properties"].append({"name": "optional", "value": "true"})
 
         bom["components"].append(cdx_comp)
 
@@ -320,11 +318,13 @@ def _format_spdx(
             pkg["checksums"] = [{"algorithm": "SHA256", "checksumValue": comp.sha256}]
 
         spdx["packages"].append(pkg)
-        spdx["relationships"].append({
-            "spdxElementId": "SPDXRef-DOCUMENT",
-            "relatedSpdxElement": spdx_id,
-            "relationshipType": "DESCRIBES",
-        })
+        spdx["relationships"].append(
+            {
+                "spdxElementId": "SPDXRef-DOCUMENT",
+                "relatedSpdxElement": spdx_id,
+                "relationshipType": "DESCRIBES",
+            }
+        )
 
     return json.dumps(spdx, indent=2)
 

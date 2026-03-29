@@ -74,12 +74,32 @@ class LogParser:
 
 
 def _extract_fenced(text: str, lang: str = "") -> str:
+    """Extracts the content within a fenced code block from the given text.
+
+    Args:
+        text (str): The input text containing the fenced code block.
+        lang (str): The language of the code block. If empty, any code block will be extracted.
+
+    Returns:
+        str: The content within the fenced code block, stripped of leading/trailing whitespace.
+    """
     pattern = rf"```{lang}\s*\n(.*?)```" if lang else r"```(?:\w+)?\s*\n(.*?)```"
     m = re.search(pattern, text, re.DOTALL)
     return m.group(1).strip() if m else text.strip()
 
 
 def _call(client, model: str, prompt: str, max_tokens: int) -> str:
+    """Calls a language model using the provided client and parameters.
+
+    Args:
+        client: The client object used to make the API call.
+        model (str): The name of the language model to use.
+        prompt (str): The input prompt for the model.
+        max_tokens (int): The maximum number of tokens to generate in the response.
+
+    Returns:
+        str: The generated response from the language model.
+    """
     resp = client.messages.create(
         model=model,
         max_tokens=max_tokens,
@@ -164,6 +184,15 @@ Output ONLY the test source inside a ```python block. No explanation.
 
 
 def _validate(messy: str, clean: str) -> list[str]:
+    """Validates the content of a messy and clean file, identifying potential issues.
+
+    Args:
+        messy (str): The content of the messy file.
+        clean (str): The content of the clean file.
+
+    Returns:
+        list[str]: A list of warnings, each describing an issue found in the files.
+    """
     warns = []
     if '"""' in messy or "'''" in messy:
         warns.append("messy file contains triple-quoted strings (docstrings leaked in)")
@@ -192,6 +221,7 @@ def generate_triplet(
 
     Returns:
         True if the triplet was saved successfully, False on error.
+
     """
     messy_path = output_dir / f"{topic}_messy.py"
     clean_path = output_dir / f"{topic}_clean.py"
@@ -258,6 +288,7 @@ def generate_examples(
     Raises:
         ImportError: If the anthropic package is not installed.
         anthropic.AuthenticationError: If ANTHROPIC_API_KEY is not set or invalid.
+
     """
     try:
         import anthropic

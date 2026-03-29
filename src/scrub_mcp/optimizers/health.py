@@ -68,6 +68,7 @@ def check_health(
 
     Returns:
         Dict of module_name -> health report.
+
     """
     student_lm = _build_lm(config.model, label="student")
     dspy.configure(lm=student_lm)
@@ -119,9 +120,7 @@ def check_health(
                 continue
             example_kwargs = {f: ex.get(f, "") for f in input_fields}
             example_kwargs[output_field] = ex[output_field]
-            trainset.append(
-                dspy.Example(**example_kwargs).with_inputs(*input_fields)
-            )
+            trainset.append(dspy.Example(**example_kwargs).with_inputs(*input_fields))
 
         if not trainset:
             health[module_name] = {
@@ -163,7 +162,9 @@ def check_health(
             # Determine status
             if avg_score < threshold:
                 status = "stale"
-                message = f"Score {avg_score:.3f} below threshold {threshold}. Recompile recommended."
+                message = (
+                    f"Score {avg_score:.3f} below threshold {threshold}. Recompile recommended."
+                )
             elif model_changed:
                 status = "model_changed"
                 message = (
@@ -233,7 +234,11 @@ def print_health_report(health: dict[str, dict[str, Any]]) -> None:
 
         logger.info(
             "  [%s] %-25s  score=%.3f%s  %s",
-            icon, name, score, delta_str, info["message"],
+            icon,
+            name,
+            score,
+            delta_str,
+            info["message"],
         )
 
         if info["status"] in ("stale", "degraded", "model_changed"):
@@ -246,8 +251,7 @@ def print_health_report(health: dict[str, dict[str, Any]]) -> None:
             stale_count,
         )
         stale_names = [
-            n for n, i in health.items()
-            if i["status"] in ("stale", "degraded", "model_changed")
+            n for n, i in health.items() if i["status"] in ("stale", "degraded", "model_changed")
         ]
         logger.info(
             "    python -m scrub_mcp.optimizers.tune --modules %s",
@@ -280,6 +284,25 @@ def _read_cached_fingerprint(cache_dir: Path, module_name: str) -> str | None:
 
 
 def main() -> None:
+    """```python
+    Check health of cached DSPy optimized prompts.
+
+    Args:
+        --cache-dir (Path): Path to the cache directory (default: .dspy_cache).
+        --examples-dir (Path): Path to training examples (default: examples).
+        --config (Path): Path to config.yaml (default: None).
+        --threshold (float): Minimum acceptable score (default: {DEFAULT_THRESHOLD}).
+        --modules (str): Comma-separated module names to check (default: all).
+        --samples (int): Max examples to evaluate per module (default: 10).
+        --json (bool): Output results as JSON instead of human-readable table (default: False).
+
+    Returns:
+        None
+
+    Raises:
+        SystemExit: Non-zero exit code if any module is stale.
+    ```
+    """
     parser = argparse.ArgumentParser(
         description="Check health of cached DSPy optimized prompts",
     )
@@ -353,10 +376,7 @@ def main() -> None:
     report_path.write_text(json.dumps(health, indent=2))
 
     # Exit code: non-zero if any module is stale
-    stale = any(
-        i["status"] in ("stale", "error")
-        for i in health.values()
-    )
+    stale = any(i["status"] in ("stale", "error") for i in health.values())
     raise SystemExit(1 if stale else 0)
 
 

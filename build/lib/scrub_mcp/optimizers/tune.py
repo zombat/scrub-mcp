@@ -23,13 +23,15 @@ import argparse
 import json
 import logging
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import dspy
 from dspy.teleprompt import BootstrapFewShot, BootstrapFewShotWithRandomSearch, MIPROv2
 
 from scrub_mcp.config import OptimizerConfig, PipelineConfig, load_config
+from scrub_mcp.examples import bundled_examples_dir
 from scrub_mcp.modules.coding_tools import (
     BatchTestGenerator,
     ComplexityReducer,
@@ -45,8 +47,6 @@ from scrub_mcp.modules.hygiene import (
     DocstringGenerator,
     TypeAnnotator,
 )
-from scrub_mcp.examples import bundled_examples_dir
-from scrub_mcp.pipeline import configure_dspy
 from scrub_mcp.tools.parser import extract_functions_from_file
 
 logger = logging.getLogger(__name__)
@@ -88,6 +88,7 @@ def load_calibration(calibration_path: Path | None = None) -> None:
     Args:
         calibration_path: Path to calibration JSON. Defaults to
             .dspy_cache/judge_calibration.json.
+
     """
     global _CALIBRATION
 
@@ -96,7 +97,11 @@ def load_calibration(calibration_path: Path | None = None) -> None:
 
     if calibration_path.exists():
         _CALIBRATION = json.loads(calibration_path.read_text())
-        logger.info("[judge] Loaded calibration from %s (%d task types)", calibration_path, len(_CALIBRATION))
+        logger.info(
+            "[judge] Loaded calibration from %s (%d task types)",
+            calibration_path,
+            len(_CALIBRATION),
+        )
     else:
         _CALIBRATION = {}
         logger.info("[judge] No calibration file found, using default rubrics")
@@ -130,18 +135,22 @@ def _build_judge_prompt(task_type: str) -> str:
     ]
 
     if anchors:
-        prompt_parts.extend([
-            "",
-            "CALIBRATION ANCHORS (use these to ground your scoring):",
-        ])
+        prompt_parts.extend(
+            [
+                "",
+                "CALIBRATION ANCHORS (use these to ground your scoring):",
+            ]
+        )
         for score_val, example in sorted(anchors.items(), key=lambda x: float(x[0])):
             prompt_parts.append(f"  Score {score_val}: {example}")
 
-    prompt_parts.extend([
-        "",
-        "Be strict and consistent. A 0.7+ means production-ready with no changes needed.",
-        "Output ONLY a JSON object: {\"score\": float, \"rationale\": \"brief reason\"}",
-    ])
+    prompt_parts.extend(
+        [
+            "",
+            "Be strict and consistent. A 0.7+ means production-ready with no changes needed.",
+            'Output ONLY a JSON object: {"score": float, "rationale": "brief reason"}',
+        ]
+    )
 
     return "\n".join(prompt_parts)
 
@@ -162,46 +171,39 @@ _DEFAULT_RUBRICS: dict[str, str] = {
   0.20 - Style: Google format (Args/Returns/Raises sections), Oxford commas, no em dashes
   0.15 - Conciseness: no filler, no restating the function name as the summary
   0.10 - Usefulness: would a new developer understand the function from the docstring alone?""",
-
     "type_annotation": """Weighted criteria:
   0.40 - Correctness: types accurately reflect runtime behavior
   0.25 - Completeness: every parameter and return value annotated
   0.20 - Precision: uses specific types (list[str]) not overly broad (Any)
   0.15 - Style: lowercase generics, union syntax (str | None not Optional[str])""",
-
     "comments": """Weighted criteria:
   0.35 - Relevance: comments explain non-obvious logic, not obvious operations
   0.25 - Accuracy: comment correctly describes what the code does
   0.20 - Categorization: correct category (explanation/warning/todo/rationale)
   0.20 - Value-add: would removing this comment make the code harder to understand?""",
-
     "test_generation": """Weighted criteria:
   0.30 - Correctness: tests would actually pass against the implementation
   0.25 - Coverage: happy path, edge cases (empty, None, boundary), error cases
   0.20 - Assertions: meaningful asserts that verify behavior, not just "doesn't crash"
   0.15 - Structure: proper use of parametrize, fixtures, descriptive test names
   0.10 - Independence: tests don't depend on each other or external state""",
-
     "complexity_reduction": """Weighted criteria:
   0.35 - Correctness: suggested refactoring preserves original behavior
   0.25 - Impact: would this actually reduce complexity (fewer branches, less nesting)?
   0.20 - Practicality: suggestion is specific enough to implement directly
   0.10 - Code quality: suggested code follows style rules
   0.10 - Prioritization: high-impact suggestions ranked first""",
-
     "refactoring": """Weighted criteria:
   0.35 - Correctness: extraction/rename preserves behavior and semantics
   0.25 - Naming: extracted function names are descriptive verb+noun, renames improve clarity
   0.20 - Boundary: extraction point is a clean seam (clear inputs/outputs)
   0.10 - Rationale: explanation makes sense to another developer
   0.10 - Scope: doesn't over-extract (pulling out 2-line helpers that only run once)""",
-
     "missing_imports": """Weighted criteria:
   0.40 - Correctness: suggested import actually provides the used name
   0.30 - Confidence: only high-confidence suggestions (no guessing)
   0.20 - Specificity: from-import over bare import where appropriate
   0.10 - Ordering: follows isort conventions""",
-
     "_fallback": """Weighted criteria:
   0.30 - Correctness: output is factually/syntactically right
   0.25 - Completeness: covers all requirements
@@ -250,6 +252,7 @@ def _judge_score(
 
     Returns:
         Score 0.0-1.0, or -1.0 if the judge is unavailable.
+
     """
     if _JUDGE_LM is None:
         return -1.0
@@ -334,7 +337,9 @@ def _structural_types(example, prediction) -> float:
 
     try:
         expected = json.loads(expected_raw) if isinstance(expected_raw, str) else expected_raw
-        predicted = json.loads(predicted_raw) if isinstance(predicted_raw, str) else predicted_raw or {}
+        predicted = (
+            json.loads(predicted_raw) if isinstance(predicted_raw, str) else predicted_raw or {}
+        )
     except (json.JSONDecodeError, TypeError):
         return 0.0
 
@@ -343,7 +348,8 @@ def _structural_types(example, prediction) -> float:
 
     correct = sum(1 for k, v in expected.items() if predicted.get(k) == v)
     partial = sum(
-        0.5 for k, v in expected.items()
+        0.5
+        for k, v in expected.items()
         if k in predicted and predicted[k] != v and _types_compatible(v, predicted[k])
     )
 
@@ -382,6 +388,7 @@ def _structural_tests(example, prediction) -> float:
         return 0.0
 
     import re
+
     score = 0.2
 
     test_count = len(re.findall(r"def test_", code))
@@ -417,8 +424,14 @@ def _structural_complexity(example, prediction) -> float:
         return 0.1
 
     score = 0.2
-    valid_kinds = {"early_return", "extract_function", "guard_clause",
-                   "simplify_bool", "lookup_table", "decompose"}
+    valid_kinds = {
+        "early_return",
+        "extract_function",
+        "guard_clause",
+        "simplify_bool",
+        "lookup_table",
+        "decompose",
+    }
 
     for s in suggestions:
         if s.get("kind") in valid_kinds:
@@ -500,7 +513,7 @@ def comment_metric(example, prediction, trace=None) -> float:
     return _combine_scores(structural, judge)
 
 
-def test_generation_metric(example, prediction, trace=None) -> float:
+def test_generation_metric(example: dict, prediction: dict, trace=None) -> float:
     """Test quality: structural pytest checks + judge for correctness.
 
     This is where the judge matters most. Structural checks can confirm
@@ -516,7 +529,7 @@ def test_generation_metric(example, prediction, trace=None) -> float:
     return _combine_scores(structural, judge)
 
 
-def complexity_metric(example, prediction, trace=None) -> float:
+def complexity_metric(example: dict, prediction: dict, trace=None) -> float:
     """Complexity suggestion quality: valid structure + judge for correctness.
 
     The judge evaluates whether the suggested refactoring would actually
@@ -530,19 +543,21 @@ def complexity_metric(example, prediction, trace=None) -> float:
     return _combine_scores(structural, judge)
 
 
-def refactoring_metric(example, prediction, trace=None) -> float:
+def refactoring_metric(example: dict, prediction: dict, trace=None) -> float:
     """Refactoring quality: valid structure + judge for semantic correctness."""
     structural = _structural_refactoring(example, prediction)
     for attr in ("extractions_json", "renames_json"):
         raw = getattr(prediction, attr, None)
         if raw:
             body = getattr(example, "function_body", "") or getattr(example, "code_block", "")
-            judge = _judge_score("refactoring", body, raw if isinstance(raw, str) else json.dumps(raw))
+            judge = _judge_score(
+                "refactoring", body, raw if isinstance(raw, str) else json.dumps(raw)
+            )
             return _combine_scores(structural, judge)
     return structural
 
 
-def import_metric(example, prediction, trace=None) -> float:
+def import_metric(example: dict, prediction: dict, trace=None) -> float:
     """Import inference quality: valid structure + judge for correctness."""
     structural = _structural_imports(example, prediction)
     raw = getattr(prediction, "missing_imports_json", "[]")
@@ -583,6 +598,7 @@ def get_optimizer(
 
     Returns:
         Configured DSPy optimizer instance.
+
     """
     if strategy == "bootstrap":
         return BootstrapFewShot(
@@ -616,6 +632,11 @@ def get_optimizer(
 
 
 def _empty_examples() -> dict[str, list[dict]]:
+    """Returns a dictionary with empty lists for various categories.
+
+    Returns:
+        dict[str, list[dict]]: A dictionary containing empty lists for 'docstrings', 'types', 'comments', 'tests', 'complexity', 'refactoring', and 'imports'.
+    """
     return {
         "docstrings": [],
         "types": [],
@@ -653,9 +674,7 @@ def _extract_tests_for(test_source: str, func_name: str) -> str:
         return ""
 
     imports = [
-        _ast.unparse(node)
-        for node in tree.body
-        if isinstance(node, (_ast.Import, _ast.ImportFrom))
+        _ast.unparse(node) for node in tree.body if isinstance(node, (_ast.Import, _ast.ImportFrom))
     ]
     header = "\n".join(imports) + "\n\n" if imports else ""
     return header + "\n\n".join(chunks)
@@ -663,7 +682,8 @@ def _extract_tests_for(test_source: str, func_name: str) -> str:
 
 def _strip_imports(source: str) -> tuple[str, list[dict]]:
     """Remove all import statements from *source* and return the stripped source
-    plus a list of missing-import dicts suitable for ``missing_imports_json``."""
+    plus a list of missing-import dicts suitable for ``missing_imports_json``.
+    """
     import ast as _ast
 
     try:
@@ -672,8 +692,7 @@ def _strip_imports(source: str) -> tuple[str, list[dict]]:
         return source, []
 
     import_nodes = [
-        n for n in _ast.iter_child_nodes(tree)
-        if isinstance(n, (_ast.Import, _ast.ImportFrom))
+        n for n in _ast.iter_child_nodes(tree) if isinstance(n, (_ast.Import, _ast.ImportFrom))
     ]
     if not import_nodes:
         return source, []
@@ -696,20 +715,24 @@ def _strip_imports(source: str) -> tuple[str, list[dict]]:
         seen_stmts.add(stmt)
         if isinstance(n, _ast.Import):
             for alias in n.names:
-                missing.append({
-                    "import_statement": stmt,
-                    "used_name": alias.asname or alias.name.split(".")[0],
-                    "line_used": 0,
-                    "confidence": 1.0,
-                })
+                missing.append(
+                    {
+                        "import_statement": stmt,
+                        "used_name": alias.asname or alias.name.split(".")[0],
+                        "line_used": 0,
+                        "confidence": 1.0,
+                    }
+                )
         else:
             for alias in n.names:
-                missing.append({
-                    "import_statement": stmt,
-                    "used_name": alias.asname or alias.name,
-                    "line_used": 0,
-                    "confidence": 1.0,
-                })
+                missing.append(
+                    {
+                        "import_statement": stmt,
+                        "used_name": alias.asname or alias.name,
+                        "line_used": 0,
+                        "confidence": 1.0,
+                    }
+                )
 
     return stripped, missing
 
@@ -751,25 +774,31 @@ def _load_from_pairs(examples_dir: Path) -> dict[str, list[dict]]:
                 all_examples["docstrings"].append({**base, "docstring": clean.existing_docstring})
 
             if clean and clean.existing_annotations:
-                all_examples["types"].append({
-                    **base,
-                    "annotations_json": json.dumps(clean.existing_annotations),
-                })
+                all_examples["types"].append(
+                    {
+                        **base,
+                        "annotations_json": json.dumps(clean.existing_annotations),
+                    }
+                )
 
             if test_source:
                 test_code = _extract_tests_for(test_source, func.name)
                 if test_code:
-                    all_examples["tests"].append({
-                        **base,
-                        "docstring": clean.existing_docstring if clean else "",
-                        "test_code": test_code,
-                    })
+                    all_examples["tests"].append(
+                        {
+                            **base,
+                            "docstring": clean.existing_docstring if clean else "",
+                            "test_code": test_code,
+                        }
+                    )
 
-            all_examples["comments"].append({
-                "code_block": func.body,
-                "context": func.signature,
-                "complexity": func.cyclomatic_complexity,
-            })
+            all_examples["comments"].append(
+                {
+                    "code_block": func.body,
+                    "context": func.signature,
+                    "complexity": func.cyclomatic_complexity,
+                }
+            )
             all_examples["refactoring"].append(base)
 
             # Complexity: use messy→clean diff as ground truth when clean is simpler
@@ -779,31 +808,39 @@ def _load_from_pairs(examples_dir: Path) -> dict[str, list[dict]]:
                 and clean.cyclomatic_complexity < func.cyclomatic_complexity
             ):
                 impact = "high" if func.cyclomatic_complexity >= 6 else "medium"
-                all_examples["complexity"].append({
-                    "function_signature": func.signature,
-                    "function_body": func.body,
-                    "cyclomatic_complexity": func.cyclomatic_complexity,
-                    "line_count": func.body_line_count,
-                    "suggestions_json": json.dumps([{
-                        "kind": "decompose",
-                        "description": (
-                            f"Reduce cyclomatic complexity from {func.cyclomatic_complexity} "
-                            f"to {clean.cyclomatic_complexity}"
+                all_examples["complexity"].append(
+                    {
+                        "function_signature": func.signature,
+                        "function_body": func.body,
+                        "cyclomatic_complexity": func.cyclomatic_complexity,
+                        "line_count": func.body_line_count,
+                        "suggestions_json": json.dumps(
+                            [
+                                {
+                                    "kind": "decompose",
+                                    "description": (
+                                        f"Reduce cyclomatic complexity from {func.cyclomatic_complexity} "
+                                        f"to {clean.cyclomatic_complexity}"
+                                    ),
+                                    "target_lines": [func.line_start, func.line_end],
+                                    "suggested_code": clean.body,
+                                    "impact": impact,
+                                }
+                            ]
                         ),
-                        "target_lines": [func.line_start, func.line_end],
-                        "suggested_code": clean.body,
-                        "impact": impact,
-                    }]),
-                })
+                    }
+                )
 
         # Imports: one file-level example per pair — strip imports from messy source
         stripped_source, missing_imports = _strip_imports(messy_source)
         if missing_imports:
-            all_examples["imports"].append({
-                "source_code": stripped_source,
-                "existing_imports": "",
-                "missing_imports_json": json.dumps(missing_imports),
-            })
+            all_examples["imports"].append(
+                {
+                    "source_code": stripped_source,
+                    "existing_imports": "",
+                    "missing_imports_json": json.dumps(missing_imports),
+                }
+            )
 
     return all_examples
 
@@ -832,54 +869,68 @@ def _load_from_annotated(examples_dir: Path) -> dict[str, list[dict]]:
             }
 
             if func.name in ground_truth.get("docstrings", {}):
-                all_examples["docstrings"].append({
-                    **base,
-                    "docstring": ground_truth["docstrings"][func.name],
-                })
+                all_examples["docstrings"].append(
+                    {
+                        **base,
+                        "docstring": ground_truth["docstrings"][func.name],
+                    }
+                )
 
             if func.name in ground_truth.get("types", {}):
-                all_examples["types"].append({
-                    **base,
-                    "annotations_json": json.dumps(ground_truth["types"][func.name]),
-                })
+                all_examples["types"].append(
+                    {
+                        **base,
+                        "annotations_json": json.dumps(ground_truth["types"][func.name]),
+                    }
+                )
 
             if func.name in ground_truth.get("tests", {}):
-                all_examples["tests"].append({
-                    **base,
-                    "docstring": func.existing_docstring or "",
-                    "test_code": ground_truth["tests"][func.name],
-                })
+                all_examples["tests"].append(
+                    {
+                        **base,
+                        "docstring": func.existing_docstring or "",
+                        "test_code": ground_truth["tests"][func.name],
+                    }
+                )
 
             if func.name in ground_truth.get("simplifications", {}):
-                all_examples["complexity"].append({
-                    **base,
-                    "cyclomatic_complexity": func.cyclomatic_complexity,
-                    "line_count": func.body_line_count,
-                    "suggestions_json": json.dumps(ground_truth["simplifications"][func.name]),
-                })
+                all_examples["complexity"].append(
+                    {
+                        **base,
+                        "cyclomatic_complexity": func.cyclomatic_complexity,
+                        "line_count": func.body_line_count,
+                        "suggestions_json": json.dumps(ground_truth["simplifications"][func.name]),
+                    }
+                )
 
-            all_examples["comments"].append({
-                "code_block": func.body,
-                "context": func.signature,
-                "complexity": func.cyclomatic_complexity,
-            })
+            all_examples["comments"].append(
+                {
+                    "code_block": func.body,
+                    "context": func.signature,
+                    "complexity": func.cyclomatic_complexity,
+                }
+            )
             all_examples["refactoring"].append(base)
 
         # Imports: from explicit ground truth key OR fall back to stripping the file
         if "imports" in ground_truth:
-            all_examples["imports"].append({
-                "source_code": ground_truth["imports"].get("source_code", ""),
-                "existing_imports": ground_truth["imports"].get("existing_imports", ""),
-                "missing_imports_json": json.dumps(ground_truth["imports"].get("missing", [])),
-            })
+            all_examples["imports"].append(
+                {
+                    "source_code": ground_truth["imports"].get("source_code", ""),
+                    "existing_imports": ground_truth["imports"].get("existing_imports", ""),
+                    "missing_imports_json": json.dumps(ground_truth["imports"].get("missing", [])),
+                }
+            )
         else:
             stripped_source, missing_imports = _strip_imports(py_file.read_text())
             if missing_imports:
-                all_examples["imports"].append({
-                    "source_code": stripped_source,
-                    "existing_imports": "",
-                    "missing_imports_json": json.dumps(missing_imports),
-                })
+                all_examples["imports"].append(
+                    {
+                        "source_code": stripped_source,
+                        "existing_imports": "",
+                        "missing_imports_json": json.dumps(missing_imports),
+                    }
+                )
 
     return all_examples
 
@@ -944,7 +995,12 @@ MODULE_REGISTRY: dict[str, dict[str, Any]] = {
     "complexity": {
         "module_cls": ComplexityReducer,
         "metric": complexity_metric,
-        "input_fields": ["function_signature", "function_body", "cyclomatic_complexity", "line_count"],
+        "input_fields": [
+            "function_signature",
+            "function_body",
+            "cyclomatic_complexity",
+            "line_count",
+        ],
         "output_field": "suggestions_json",
     },
     "tests": {
@@ -1014,6 +1070,7 @@ def optimize(
 
     Returns:
         Dict of module_name -> {"strategy": str, "score": float, "time_s": float}
+
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     opt_cfg = config.optimizer
@@ -1030,8 +1087,10 @@ def optimize(
         load_calibration(calibration_path)
         logger.info(
             "[teacher-student] Teacher: %s (%s), Student: %s (%s)",
-            opt_cfg.teacher.model, opt_cfg.teacher.provider,
-            config.model.model, config.model.provider,
+            opt_cfg.teacher.model,
+            opt_cfg.teacher.provider,
+            config.model.model,
+            config.model.provider,
         )
         logger.info("[judge] Calibrated LLM-as-judge active (0.4 structural + 0.6 judge)")
     else:
@@ -1039,7 +1098,8 @@ def optimize(
         set_judge_lm(None)  # No judge, structural metrics only
         logger.info(
             "[self-teach] Compiling on student model: %s (%s) (structural metrics only)",
-            config.model.model, config.model.provider,
+            config.model.model,
+            config.model.provider,
         )
 
     all_examples = load_examples(examples_dir)
@@ -1068,9 +1128,7 @@ def optimize(
                 continue
             example_kwargs = {f: ex.get(f, "") for f in input_fields}
             example_kwargs[output_field] = ex[output_field]
-            trainset.append(
-                dspy.Example(**example_kwargs).with_inputs(*input_fields)
-            )
+            trainset.append(dspy.Example(**example_kwargs).with_inputs(*input_fields))
 
         if not trainset:
             logger.info("[%s] No valid training examples with output, skipping", module_name)
@@ -1090,21 +1148,27 @@ def optimize(
             dspy.configure(lm=student_lm)
             logger.info(
                 "[%s] MIPROv2 teacher-student: teacher=%s, student=%s",
-                module_name, opt_cfg.teacher.model, config.model.model,
+                module_name,
+                opt_cfg.teacher.model,
+                config.model.model,
             )
         elif opt_cfg.use_teacher:
             # Bootstrap strategies: compile with teacher, then validate on student
             dspy.configure(lm=teacher_lm)
             logger.info(
                 "[%s] %s with teacher: %s (will validate on student)",
-                module_name, strategy, opt_cfg.teacher.model,
+                module_name,
+                strategy,
+                opt_cfg.teacher.model,
             )
         else:
             dspy.configure(lm=student_lm)
 
         logger.info(
             "[%s] Optimizing with %s strategy (%d examples)",
-            module_name, strategy, len(trainset),
+            module_name,
+            strategy,
+            len(trainset),
         )
 
         optimizer = get_optimizer(strategy, metric, opt_cfg)
@@ -1142,6 +1206,7 @@ def optimize(
 
             # Stamp model fingerprint for staleness detection
             from scrub_mcp.optimizers.health import save_fingerprint
+
             save_fingerprint(output_dir, module_name, config)
 
             results[module_name] = {
@@ -1156,7 +1221,10 @@ def optimize(
 
             logger.info(
                 "[%s] Done in %.1fs, student score: %.3f, saved to %s",
-                module_name, elapsed, avg_score, save_path,
+                module_name,
+                elapsed,
+                avg_score,
+                save_path,
             )
 
         except Exception:
@@ -1184,14 +1252,17 @@ def optimize(
         status = "FAIL" if info.get("error") else f"student_score={info['score_on_student']:.3f}"
         logger.info(
             "  %-25s  %-15s  %s  (%.1fs)",
-            name, info["strategy"], status, info["time_s"],
+            name,
+            info["strategy"],
+            status,
+            info["time_s"],
         )
     logger.info("=" * 70)
 
     return results
 
 
-def _build_lm(model_config: "ModelConfig", label: str = "") -> dspy.LM:
+def _build_lm(model_config: ModelConfig, label: str = "") -> dspy.LM:
     """Build a DSPy LM instance from a ModelConfig.
 
     Args:
@@ -1200,9 +1271,8 @@ def _build_lm(model_config: "ModelConfig", label: str = "") -> dspy.LM:
 
     Returns:
         Configured dspy.LM instance.
-    """
-    from scrub_mcp.config import ModelConfig
 
+    """
     if model_config.provider == "ollama":
         lm = dspy.LM(
             model=f"ollama_chat/{model_config.model}",
@@ -1237,6 +1307,23 @@ def _build_lm(model_config: "ModelConfig", label: str = "") -> dspy.LM:
 
 
 def main() -> None:
+    """Optimize DSPy code hygiene modules with per-module strategy selection.
+
+    Args:
+        --examples-dir (Path, optional): Directory with training examples (default: bundled examples shipped with the package).
+        --output-dir (Path, optional): Where to save optimized modules (default: .dspy_cache).
+        --config (Path, optional): Path to config.yaml.
+        --modules (str, optional): Comma-separated module names to optimize (default: all). E.g.: docstrings,types,tests.
+        --strategy (str, optional): Override strategy for all modules (ignores per-module config).
+        --teacher (bool, optional): Use teacher model for compilation (cloud), validate on student (local) (default: False).
+        --teacher-model (str, optional): Override teacher model (e.g., 'claude-sonnet-4-20250514'). Implies --teacher.
+        --teacher-provider (str, optional): Teacher model provider. Defaults to config value.
+        --build-examples (Path, optional): Generate training examples into DIR using Claude API before tuning. Requires ANTHROPIC_API_KEY. Uses --teacher-model if set, otherwise defaults to claude-sonnet-4-20250514.
+        --build-count (int, optional): Number of example triplets to generate with --build-examples (default: 10).
+
+    Returns:
+        None
+    """
     parser = argparse.ArgumentParser(
         description="Optimize DSPy code hygiene modules with per-module strategy selection",
     )
@@ -1263,7 +1350,7 @@ def main() -> None:
         type=str,
         default=None,
         help="Comma-separated module names to optimize (default: all). "
-             "E.g.: docstrings,types,tests",
+        "E.g.: docstrings,types,tests",
     )
     parser.add_argument(
         "--strategy",
@@ -1317,9 +1404,14 @@ def main() -> None:
 
     if args.build_examples:
         from scrub_mcp.optimizers.examples_gen import generate_examples
+
         build_model = args.teacher_model or "claude-sonnet-4-20250514"
-        logger.info("Building %d training examples into %s using %s ...",
-                    args.build_count, args.build_examples, build_model)
+        logger.info(
+            "Building %d training examples into %s using %s ...",
+            args.build_count,
+            args.build_examples,
+            build_model,
+        )
         ok = generate_examples(args.build_examples, model=build_model, count=args.build_count)
         if ok == 0:
             logger.error("No examples generated — aborting. Check ANTHROPIC_API_KEY.")

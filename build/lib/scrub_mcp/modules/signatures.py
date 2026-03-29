@@ -88,9 +88,7 @@ class CommentSignature(dspy.Signature):
     """
 
     code_block: str = dspy.InputField(desc="The code to comment")
-    context: str = dspy.InputField(
-        desc="Surrounding context or function purpose", default=""
-    )
+    context: str = dspy.InputField(desc="Surrounding context or function purpose", default="")
     complexity: int = dspy.InputField(desc="Cyclomatic complexity score", default=1)
     comments_json: str = dspy.OutputField(
         desc='JSON list of {"line_offset": int, "comment": str, "category": str}'
