@@ -176,6 +176,15 @@ class PipelineConfig(BaseModel):
         ),
     )
 
+    # ── File system traversal ──
+    exclude_paths: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Extra glob patterns to exclude from file-tree traversal (beyond .gitignore). "
+            "Example: ['tests/fixtures/**', 'legacy_api/**']"
+        ),
+    )
+
 
 def load_config(config_path: Path | None = None) -> PipelineConfig:
     """Load config from YAML file, falling back to defaults."""

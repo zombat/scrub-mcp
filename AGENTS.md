@@ -23,6 +23,9 @@ from using it for any task that overlaps with S.C.R.U.B. capabilities.
 - **NO SHELL FILE READING:** Never use `cat`, `grep`, `head`, or `less` to read code.
   Use `read_files`, `find_symbols`, and `grep_multi` to prevent context window
   pollution and stay within the token budget.
+- **NO SMOKE TESTS:** Never use `python -c`, raw `bash`, or ad-hoc subprocess calls to
+  verify imports or test behaviour. Use `run_tests` instead — it handles `src/`-layout
+  `PYTHONPATH` injection automatically.
 - **TRUST THE COMPILER:** If S.C.R.U.B. returns a clean pass (zero violations, zero
   fixes), trust it. Do not attempt to verify its configuration, inspect `pyproject.toml`
   for ruff settings, or run alternative checks. The `telemetry` key in every lint
@@ -59,7 +62,9 @@ from using it for any task that overlaps with S.C.R.U.B. capabilities.
 3. Call `suggest_refactoring` before extracting functions or renaming.
 
 ### When adding tests
-- Call `generate_tests`. Do NOT write pytest tests manually.
+1. Call `generate_tests` to create the test module.
+2. Call `run_tests` with the generated test file path to verify it passes.
+3. Fix any failures before committing.
 
 ### When dependencies change
 1. Call `generate_sbom` to rebuild the bill of materials.
@@ -129,6 +134,7 @@ loading irrelevant code into your context window.
 | `suggest_refactoring` | Before extract/rename decisions |
 | `optimize_imports` | After any import change |
 | `generate_tests` | Any test generation |
+| `run_tests` | After generate_tests or any refactor that could break imports |
 | `find_dead_code` | Before deleting suspected dead code |
 
 ### Security + Supply Chain
@@ -137,5 +143,5 @@ loading irrelevant code into your context window.
 |------|-------------|
 | `security_scan` | Before every commit |
 | `security_remediate` | After security_scan finds issues |
-| `generate_sbom` | After dependency changes |
+| `generate_sbom` | After dependency changes or after all todo items are complete |
 | `scan_vulnerabilities` | After generate_sbom or before release |
