@@ -83,3 +83,10 @@ deterministic_prefilter: true  # skip functions that already have docstrings/typ
 savings:
   price_per_mtoken: 15.0   # output token price per million tokens in your currency unit
   currency_unit: USD        # USD, EUR, GBP, credits — just a label
+
+# Artifact cache: skip DSPy for functions whose composite hash hasn't changed
+cache:
+  cache_enabled: true
+  cache_dir: .scrub_cache/artifacts
+  cache_max_size_mb: 500
+  cache_schema_version: 1

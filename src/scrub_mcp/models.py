@@ -96,6 +96,10 @@ class HygieneReport(BaseModel):
     type_annotations: list[TypeAnnotation] = Field(default_factory=list)
     comments: list[SemanticComment] = Field(default_factory=list)
     modified_source: str = ""
+    skipped_functions: int = Field(
+        default=0,
+        description="Functions skipped due to cache hits or diff narrowing.",
+    )
 
 
 # ── Coding tool models ──
