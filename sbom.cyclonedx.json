@@ -1,0 +1,1248 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:5ca12b8d-3e72-4a2b-99da-d780a3a66095",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-03-29T22:40:10.794295+00:00",
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "name": "dspy-code-hygiene",
+          "version": "0.1.0"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "name": "aiohappyeyeballs",
+      "version": "2.6.1",
+      "purl": "pkg:pypi/aiohappyeyeballs@2.6.1",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "aiohttp",
+      "version": "3.13.3",
+      "purl": "pkg:pypi/aiohttp@3.13.3",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "aiosignal",
+      "version": "1.4.0",
+      "purl": "pkg:pypi/aiosignal@1.4.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "alembic",
+      "version": "1.18.4",
+      "purl": "pkg:pypi/alembic@1.18.4",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "annotated-doc",
+      "version": "0.0.4",
+      "purl": "pkg:pypi/annotated-doc@0.0.4",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "annotated-types",
+      "version": "0.7.0",
+      "purl": "pkg:pypi/annotated-types@0.7.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "anthropic",
+      "version": "0.86.0",
+      "purl": "pkg:pypi/anthropic@0.86.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "anyio",
+      "version": "4.13.0",
+      "purl": "pkg:pypi/anyio@4.13.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "async-timeout",
+      "version": "5.0.1",
+      "purl": "pkg:pypi/async-timeout@5.0.1",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "asyncer",
+      "version": "0.0.8",
+      "purl": "pkg:pypi/asyncer@0.0.8",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "attrs",
+      "version": "26.1.0",
+      "purl": "pkg:pypi/attrs@26.1.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "bandit",
+      "version": "1.9.4",
+      "purl": "pkg:pypi/bandit@1.9.4",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "cachetools",
+      "version": "7.0.5",
+      "purl": "pkg:pypi/cachetools@7.0.5",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "certifi",
+      "version": "2026.2.25",
+      "purl": "pkg:pypi/certifi@2026.2.25",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "cffi",
+      "version": "2.0.0",
+      "purl": "pkg:pypi/cffi@2.0.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "charset-normalizer",
+      "version": "3.4.6",
+      "purl": "pkg:pypi/charset-normalizer@3.4.6",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "click",
+      "version": "8.3.1",
+      "purl": "pkg:pypi/click@8.3.1",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "cloudpickle",
+      "version": "3.1.2",
+      "purl": "pkg:pypi/cloudpickle@3.1.2",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "colorlog",
+      "version": "6.10.1",
+      "purl": "pkg:pypi/colorlog@6.10.1",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "cryptography",
+      "version": "46.0.6",
+      "purl": "pkg:pypi/cryptography@46.0.6",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "diskcache",
+      "version": "5.6.3",
+      "purl": "pkg:pypi/diskcache@5.6.3",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "distro",
+      "version": "1.9.0",
+      "purl": "pkg:pypi/distro@1.9.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "docstring_parser",
+      "version": "0.17.0",
+      "purl": "pkg:pypi/docstring_parser@0.17.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "dspy",
+      "version": "3.1.3",
+      "purl": "pkg:pypi/dspy@3.1.3",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "exceptiongroup",
+      "version": "1.3.1",
+      "purl": "pkg:pypi/exceptiongroup@1.3.1",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "fastuuid",
+      "version": "0.14.0",
+      "purl": "pkg:pypi/fastuuid@0.14.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "filelock",
+      "version": "3.25.2",
+      "purl": "pkg:pypi/filelock@3.25.2",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "frozenlist",
+      "version": "1.8.0",
+      "purl": "pkg:pypi/frozenlist@1.8.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "fsspec",
+      "version": "2026.3.0",
+      "purl": "pkg:pypi/fsspec@2026.3.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "gepa",
+      "version": "0.0.26",
+      "purl": "pkg:pypi/gepa@0.0.26",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "greenlet",
+      "version": "3.3.2",
+      "purl": "pkg:pypi/greenlet@3.3.2",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "h11",
+      "version": "0.16.0",
+      "purl": "pkg:pypi/h11@0.16.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "hf-xet",
+      "version": "1.4.2",
+      "purl": "pkg:pypi/hf-xet@1.4.2",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "httpcore",
+      "version": "1.0.9",
+      "purl": "pkg:pypi/httpcore@1.0.9",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "httpx",
+      "version": "0.28.1",
+      "purl": "pkg:pypi/httpx@0.28.1",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "httpx-sse",
+      "version": "0.4.3",
+      "purl": "pkg:pypi/httpx-sse@0.4.3",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "huggingface_hub",
+      "version": "1.8.0",
+      "purl": "pkg:pypi/huggingface_hub@1.8.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "idna",
+      "version": "3.11",
+      "purl": "pkg:pypi/idna@3.11",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "importlib_metadata",
+      "version": "9.0.0",
+      "purl": "pkg:pypi/importlib_metadata@9.0.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "iniconfig",
+      "version": "2.3.0",
+      "purl": "pkg:pypi/iniconfig@2.3.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "Jinja2",
+      "version": "3.1.6",
+      "purl": "pkg:pypi/jinja2@3.1.6",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "jiter",
+      "version": "0.13.0",
+      "purl": "pkg:pypi/jiter@0.13.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "json_repair",
+      "version": "0.58.7",
+      "purl": "pkg:pypi/json_repair@0.58.7",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "jsonschema",
+      "version": "4.26.0",
+      "purl": "pkg:pypi/jsonschema@4.26.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "jsonschema-specifications",
+      "version": "2025.9.1",
+      "purl": "pkg:pypi/jsonschema-specifications@2025.9.1",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "litellm",
+      "version": "1.82.6",
+      "purl": "pkg:pypi/litellm@1.82.6",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "Mako",
+      "version": "1.3.10",
+      "purl": "pkg:pypi/mako@1.3.10",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "markdown-it-py",
+      "version": "4.0.0",
+      "purl": "pkg:pypi/markdown-it-py@4.0.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "MarkupSafe",
+      "version": "3.0.3",
+      "purl": "pkg:pypi/markupsafe@3.0.3",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "mcp",
+      "version": "1.26.0",
+      "purl": "pkg:pypi/mcp@1.26.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "mdurl",
+      "version": "0.1.2",
+      "purl": "pkg:pypi/mdurl@0.1.2",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "multidict",
+      "version": "6.7.1",
+      "purl": "pkg:pypi/multidict@6.7.1",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "nodeenv",
+      "version": "1.10.0",
+      "purl": "pkg:pypi/nodeenv@1.10.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "numpy",
+      "version": "2.2.6",
+      "purl": "pkg:pypi/numpy@2.2.6",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "openai",
+      "version": "2.30.0",
+      "purl": "pkg:pypi/openai@2.30.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "optuna",
+      "version": "4.8.0",
+      "purl": "pkg:pypi/optuna@4.8.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "orjson",
+      "version": "3.11.7",
+      "purl": "pkg:pypi/orjson@3.11.7",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "packaging",
+      "version": "26.0",
+      "purl": "pkg:pypi/packaging@26.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "pathspec",
+      "version": "1.0.4",
+      "purl": "pkg:pypi/pathspec@1.0.4",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "pip",
+      "version": "26.0.1",
+      "purl": "pkg:pypi/pip@26.0.1",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "pluggy",
+      "version": "1.6.0",
+      "purl": "pkg:pypi/pluggy@1.6.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "propcache",
+      "version": "0.4.1",
+      "purl": "pkg:pypi/propcache@0.4.1",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "pycparser",
+      "version": "3.0",
+      "purl": "pkg:pypi/pycparser@3.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "pydantic",
+      "version": "2.12.5",
+      "purl": "pkg:pypi/pydantic@2.12.5",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "pydantic-settings",
+      "version": "2.13.1",
+      "purl": "pkg:pypi/pydantic-settings@2.13.1",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "pydantic_core",
+      "version": "2.41.5",
+      "purl": "pkg:pypi/pydantic_core@2.41.5",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "pydocstyle",
+      "version": "6.3.0",
+      "purl": "pkg:pypi/pydocstyle@6.3.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "Pygments",
+      "version": "2.19.2",
+      "purl": "pkg:pypi/pygments@2.19.2",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "PyJWT",
+      "version": "2.12.1",
+      "purl": "pkg:pypi/pyjwt@2.12.1",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "pyright",
+      "version": "1.1.408",
+      "purl": "pkg:pypi/pyright@1.1.408",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "pytest",
+      "version": "9.0.2",
+      "purl": "pkg:pypi/pytest@9.0.2",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "python-dotenv",
+      "version": "1.2.2",
+      "purl": "pkg:pypi/python-dotenv@1.2.2",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "python-multipart",
+      "version": "0.0.22",
+      "purl": "pkg:pypi/python-multipart@0.0.22",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "PyYAML",
+      "version": "6.0.3",
+      "purl": "pkg:pypi/pyyaml@6.0.3",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "referencing",
+      "version": "0.37.0",
+      "purl": "pkg:pypi/referencing@0.37.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "regex",
+      "version": "2026.2.28",
+      "purl": "pkg:pypi/regex@2026.2.28",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "requests",
+      "version": "2.33.0",
+      "purl": "pkg:pypi/requests@2.33.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "rich",
+      "version": "14.3.3",
+      "purl": "pkg:pypi/rich@14.3.3",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "rpds-py",
+      "version": "0.30.0",
+      "purl": "pkg:pypi/rpds-py@0.30.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "ruff",
+      "version": "0.15.8",
+      "purl": "pkg:pypi/ruff@0.15.8",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "scrub-mcp",
+      "version": "unspecified",
+      "purl": "pkg:pypi/scrub-mcp@unspecified",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pyproject.toml[all]"
+        },
+        {
+          "name": "optional",
+          "value": "true"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "setuptools",
+      "version": "82.0.1",
+      "purl": "pkg:pypi/setuptools@82.0.1",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "shellingham",
+      "version": "1.5.4",
+      "purl": "pkg:pypi/shellingham@1.5.4",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "sniffio",
+      "version": "1.3.1",
+      "purl": "pkg:pypi/sniffio@1.3.1",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "snowballstemmer",
+      "version": "3.0.1",
+      "purl": "pkg:pypi/snowballstemmer@3.0.1",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "SQLAlchemy",
+      "version": "2.0.48",
+      "purl": "pkg:pypi/sqlalchemy@2.0.48",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "sse-starlette",
+      "version": "3.3.3",
+      "purl": "pkg:pypi/sse-starlette@3.3.3",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "starlette",
+      "version": "1.0.0",
+      "purl": "pkg:pypi/starlette@1.0.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "stevedore",
+      "version": "5.7.0",
+      "purl": "pkg:pypi/stevedore@5.7.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "tenacity",
+      "version": "9.1.4",
+      "purl": "pkg:pypi/tenacity@9.1.4",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "tiktoken",
+      "version": "0.12.0",
+      "purl": "pkg:pypi/tiktoken@0.12.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "tokenizers",
+      "version": "0.22.2",
+      "purl": "pkg:pypi/tokenizers@0.22.2",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "tomli",
+      "version": "2.4.1",
+      "purl": "pkg:pypi/tomli@2.4.1",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "tqdm",
+      "version": "4.67.3",
+      "purl": "pkg:pypi/tqdm@4.67.3",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "typer",
+      "version": "0.24.1",
+      "purl": "pkg:pypi/typer@0.24.1",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "typing-inspection",
+      "version": "0.4.2",
+      "purl": "pkg:pypi/typing-inspection@0.4.2",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "typing_extensions",
+      "version": "4.15.0",
+      "purl": "pkg:pypi/typing_extensions@4.15.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "urllib3",
+      "version": "2.6.3",
+      "purl": "pkg:pypi/urllib3@2.6.3",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "uvicorn",
+      "version": "0.42.0",
+      "purl": "pkg:pypi/uvicorn@0.42.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "xxhash",
+      "version": "3.6.0",
+      "purl": "pkg:pypi/xxhash@3.6.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "yarl",
+      "version": "1.23.0",
+      "purl": "pkg:pypi/yarl@1.23.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "zipp",
+      "version": "3.23.0",
+      "purl": "pkg:pypi/zipp@3.23.0",
+      "properties": [
+        {
+          "name": "source",
+          "value": "pip freeze"
+        }
+      ]
+    }
+  ]
+}
