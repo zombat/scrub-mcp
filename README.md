@@ -20,11 +20,17 @@ Cloud LLM (plan) ──> S.C.R.U.B. MCP Server ──> Cloud LLM (review)
          SARIF 2.1.0 output
 ```
 
-## Why
+## Why: From Code Generation to Code Governance
 
-Cloud LLMs waste tokens on boilerplate. Docstrings, type annotations, linting fixes, test stubs: these are high-volume, low-reasoning tasks that eat your context window and your budget. When the context gets long, the model gets lazy. It half-writes docstrings. It skips the 47th function. It "summarizes" instead of generating.
+The AI industry is obsessed with Day 1: writing code faster. But for any team responsible for enterprise infrastructure, the real cost of software isn't writing it—it's Day 2: maintaining, securing, and auditing that code for the next five years.
 
-S.C.R.U.B. moves that work to a local pipeline where compute is virtually free, quality is consistent, and every function gets the same pass whether it's the first or the last.
+AI makes it dangerously easy to generate massive amounts of technical debt, complex spaghetti logic, and unvetted supply chain risks. It writes code, but it doesn't own systems.
+
+S.C.R.U.B. is the adult in the room. It is not a coding tool; it is a **best practices tool**. It acts as a deterministic governance engine that sits between the AI and your codebase, strictly enforcing sanity, security thresholds, and architectural standards. It allows teams to safely adopt autonomous coding agents because the output is systematically proven to be compliant, legible, and secure *before* it ever hits a pull request.
+
+The fact that S.C.R.U.B. forces CycloneDX SBOMs, Bandit security scans, and strict cyclomatic complexity limits isn't just a side feature—it's the product. The conversation shifts from "How fast can the AI code?" to "How safe is the code the AI just wrote?"
+
+This deterministic-first approach has a powerful side effect: it dramatically cuts cloud LLM costs. Boilerplate tasks like docstrings, type annotations, and linting are handled locally, where compute is virtually free and quality is consistent. Your cloud models are reserved for high-level planning and review, not churning out commodity code.
 
 ## Architecture
 
