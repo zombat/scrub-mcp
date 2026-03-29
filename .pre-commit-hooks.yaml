@@ -1,0 +1,21 @@
+- id: scrub-check
+  name: S.C.R.U.B. code quality check
+  description: >
+    Run S.C.R.U.B. on staged Python files. Fast because diff-aware mode
+    (--since HEAD) combined with the artifact cache means only changed
+    functions are analyzed.
+  entry: scrub check --since HEAD --fail-on missing-docstrings,missing-types
+  language: python
+  types: [python]
+  pass_filenames: false
+  stages: [pre-commit]
+
+- id: scrub-security
+  name: S.C.R.U.B. security check
+  description: >
+    Run Bandit security scan on staged Python files via S.C.R.U.B.
+  entry: scrub check --since HEAD --fail-on security:MEDIUM
+  language: python
+  types: [python]
+  pass_filenames: false
+  stages: [pre-commit]

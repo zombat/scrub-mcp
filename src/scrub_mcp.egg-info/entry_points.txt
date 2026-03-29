@@ -1,0 +1,2 @@
+[console_scripts]
+scrub = scrub_mcp.cli:main

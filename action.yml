@@ -1,0 +1,91 @@
+name: "S.C.R.U.B. Code Quality"
+description: "Run S.C.R.U.B. code hygiene, security, and supply-chain checks as a CI gate."
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  mode:
+    description: "CLI subcommand: check, fix, diff, or audit"
+    default: "check"
+    required: false
+  since:
+    description: "Git ref for diff-aware mode (e.g. HEAD~1, main). Empty = all files."
+    default: ""
+    required: false
+  fail-on:
+    description: >-
+      Comma-separated violations for 'check' mode
+      (missing-docstrings, missing-types, complexity:N, security:SEVERITY, vulns:SEVERITY).
+    default: "missing-docstrings,missing-types"
+    required: false
+  fail-on-severity:
+    description: "For 'audit' mode: exit 1 if any finding is at or above this severity."
+    default: ""
+    required: false
+  format:
+    description: "Output format: text, json, or sarif"
+    default: "sarif"
+    required: false
+  output:
+    description: "Output file path for the report"
+    default: "scrub-results.sarif"
+    required: false
+  python-version:
+    description: "Python version to use"
+    default: "3.12"
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install S.C.R.U.B.
+      shell: bash
+      run: pip install -e "${{ github.action_path }}"
+
+    - name: Run S.C.R.U.B. (check)
+      if: inputs.mode == 'check'
+      shell: bash
+      run: |
+        scrub check . \
+          ${{ inputs.since != '' && format('--since {0}', inputs.since) || '' }} \
+          --fail-on "${{ inputs.fail-on }}" \
+          --format "${{ inputs.format }}" \
+          --output "${{ inputs.output }}"
+
+    - name: Run S.C.R.U.B. (audit)
+      if: inputs.mode == 'audit'
+      shell: bash
+      run: |
+        scrub audit . \
+          ${{ inputs.since != '' && format('--since {0}', inputs.since) || '' }} \
+          ${{ inputs.fail-on-severity != '' && format('--fail-on-severity {0}', inputs.fail-on-severity) || '' }} \
+          --format "${{ inputs.format }}" \
+          --output "${{ inputs.output }}"
+
+    - name: Run S.C.R.U.B. (fix)
+      if: inputs.mode == 'fix'
+      shell: bash
+      run: |
+        scrub fix . \
+          ${{ inputs.since != '' && format('--since {0}', inputs.since) || '' }}
+
+    - name: Run S.C.R.U.B. (diff)
+      if: inputs.mode == 'diff'
+      shell: bash
+      run: |
+        scrub diff . \
+          ${{ inputs.since != '' && format('--since {0}', inputs.since) || '' }} \
+          --format unified
+
+    - name: Upload SARIF to GitHub Code Scanning
+      if: inputs.format == 'sarif' && (inputs.mode == 'check' || inputs.mode == 'audit')
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ inputs.output }}
+      continue-on-error: true

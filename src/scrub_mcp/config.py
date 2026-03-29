@@ -100,6 +100,15 @@ class OptimizerConfig(BaseModel):
     )
 
 
+class CacheConfig(BaseModel):
+    """Artifact cache configuration."""
+
+    cache_enabled: bool = True
+    cache_dir: str = ".scrub_cache/artifacts"
+    cache_max_size_mb: int = 500
+    cache_schema_version: int = 1
+
+
 class SavingsConfig(BaseModel):
     """Cloud cost savings estimation settings."""
 
@@ -184,6 +193,9 @@ class PipelineConfig(BaseModel):
             "Example: ['tests/fixtures/**', 'legacy_api/**']"
         ),
     )
+
+    # ── 2.x: Artifact cache ──
+    cache: CacheConfig = Field(default_factory=CacheConfig)
 
 
 def load_config(config_path: Path | None = None) -> PipelineConfig:

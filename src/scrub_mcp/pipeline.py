@@ -34,6 +34,16 @@ from scrub_mcp.models import (
     SemanticComment,
     TypeAnnotation,
 )
+from scrub_mcp.tools.cache import (
+    CacheEntry,
+    evict_if_needed,
+    lookup_cached_artifact,
+    make_cache_entry,
+    resolve_local_imports,
+    validate_cached_artifact,
+    write_cache,
+)
+from scrub_mcp.tools.diff import _paths_match, intersect_with_functions, parse_diff
 from scrub_mcp.modules.hygiene import (
     BatchDocstringGenerator,
     BatchTypeAnnotator,
@@ -63,6 +73,22 @@ from scrub_mcp.utils import (
 logger = logging.getLogger(__name__)
 
 _TEST_PATTERN = re.compile(r"(^|[/\\])(test_.*|.*_test|conftest)\.py$")
+
+
+def _find_project_root(file_path: str) -> str:
+    """Walk up from file_path to find the nearest .git or pyproject.toml.
+
+    Falls back to the file's own directory if no marker is found within 20 levels.
+    """
+    p = Path(file_path).resolve().parent
+    for _ in range(20):
+        if (p / ".git").exists() or (p / "pyproject.toml").exists():
+            return str(p)
+        parent = p.parent
+        if parent == p:
+            break
+        p = parent
+    return str(Path(file_path).resolve().parent)
 
 
 def configure_dspy(config: PipelineConfig) -> None:
@@ -99,6 +125,44 @@ def configure_dspy(config: PipelineConfig) -> None:
             pass  # non-fatal; model will cold-load on first real call if needed
 
 
+def _write_doc_cache(
+    func: FunctionInfo,
+    doc: GeneratedDocstring,
+    source: str,
+    project_root: str,
+    model_fp: str,
+    cfg: PipelineConfig,
+) -> None:
+    """Write a generated docstring to the artifact cache."""
+    try:
+        entry = make_cache_entry(
+            func, "docstring", doc.model_dump_json(),
+            source, project_root, model_fp, cfg.cache.cache_schema_version,
+        )
+        write_cache(entry, cfg.cache.cache_dir)
+    except Exception:
+        logger.debug("[cache] Failed to write docstring cache for %s", func.name, exc_info=True)
+
+
+def _write_type_cache(
+    func: FunctionInfo,
+    ann: TypeAnnotation,
+    source: str,
+    project_root: str,
+    model_fp: str,
+    cfg: PipelineConfig,
+) -> None:
+    """Write a generated type annotation to the artifact cache."""
+    try:
+        entry = make_cache_entry(
+            func, "type", ann.model_dump_json(),
+            source, project_root, model_fp, cfg.cache.cache_schema_version,
+        )
+        write_cache(entry, cfg.cache.cache_dir)
+    except Exception:
+        logger.debug("[cache] Failed to write type cache for %s", func.name, exc_info=True)
+
+
 def _compute_adaptive_batch_size(funcs: list[FunctionInfo], config: PipelineConfig) -> int:
     """Return an adaptive batch size based on average function body length.
 
@@ -118,6 +182,7 @@ def run_pipeline(
     file_path: str = "<stdin>",
     config: PipelineConfig | None = None,
     steps: set[str] | None = None,
+    diff: str | None = None,
 ) -> HygieneReport:
     """Run the full hygiene pipeline on Python source code.
 
@@ -127,6 +192,9 @@ def run_pipeline(
         config: Pipeline configuration. Loads defaults if None.
         steps: Which steps to run. None = all.
             Valid: {"lint", "docstrings", "types", "comments"}
+        diff: Optional unified diff text. When provided, only functions
+            touched by the diff are passed to DSPy. Ruff and Bandit still
+            run on the full file.
 
     Returns:
         HygieneReport with modified source and per-step details.
@@ -214,12 +282,96 @@ def run_pipeline(
             len(functions) - len(funcs_needing_types),
         )
 
+    # ── Step 3.5: Diff narrowing (when diff is provided) ──
+    # Narrow the candidate set to functions touched by the diff.
+    # Ruff (Step 1) already ran on the full file; this only affects DSPy work.
+    force_module_doc = False
+    if diff is not None:
+        changed_ranges = parse_diff(diff)
+        file_ranges = [r for r in changed_ranges if _paths_match(r.file_path, file_path)]
+        if file_ranges:
+            if funcs_needing_docs:
+                funcs_needing_docs, module_level_changed = intersect_with_functions(
+                    file_ranges, funcs_needing_docs, working_source, file_path
+                )
+                if module_level_changed:
+                    force_module_doc = True
+            if funcs_needing_types:
+                funcs_needing_types, _ = intersect_with_functions(
+                    file_ranges, funcs_needing_types, working_source, file_path
+                )
+            # Narrow complex functions for comments (computed later, narrow functions list)
+            functions, _ = intersect_with_functions(
+                file_ranges, functions, working_source, file_path
+            )
+        else:
+            # File not in the diff — skip all DSPy work for this file
+            logger.info("[diff] %s not in diff, skipping all DSPy work", file_path)
+            funcs_needing_docs = []
+            funcs_needing_types = []
+            classes_needing_docs = []
+            functions = []
+
+    # ── Step 3.6: Cache lookup ──
+    # For each candidate function, check if we have a valid cached artifact.
+    # Cache hits skip the DSPy call entirely; the artifact is applied immediately.
+    model_fp = f"{cfg.model.provider}/{cfg.model.model}"
+    project_root = _find_project_root(file_path) if file_path != "<stdin>" else "."
+
+    if cfg.cache.cache_enabled:
+        evict_if_needed(cfg.cache.cache_dir, cfg.cache.cache_max_size_mb)
+
+        # Resolve local imports once (not thread-safe, must be before ThreadPoolExecutor)
+        resolve_local_imports(working_source, project_root)  # warms importlib cache
+
+        if "docstrings" in all_steps and funcs_needing_docs:
+            still_need_docs: list[FunctionInfo] = []
+            for func in funcs_needing_docs:
+                entry = lookup_cached_artifact(
+                    func, "docstring", working_source, project_root,
+                    model_fp, cfg.cache.cache_enabled, cfg.cache.cache_dir,
+                )
+                if entry and validate_cached_artifact(entry, func, cfg.cache.cache_schema_version):
+                    doc = GeneratedDocstring.model_validate_json(entry.generated_artifact)
+                    report.docstrings.append(doc)
+                    working_source = apply_docstrings(working_source, [doc])
+                    report.skipped_functions += 1
+                    logger.debug("[cache] docstring hit for %s", func.name)
+                else:
+                    still_need_docs.append(func)
+            funcs_needing_docs = still_need_docs
+
+        if "types" in all_steps and funcs_needing_types:
+            still_need_types: list[FunctionInfo] = []
+            for func in funcs_needing_types:
+                entry = lookup_cached_artifact(
+                    func, "type", working_source, project_root,
+                    model_fp, cfg.cache.cache_enabled, cfg.cache.cache_dir,
+                )
+                if entry and validate_cached_artifact(entry, func, cfg.cache.cache_schema_version):
+                    ann = TypeAnnotation.model_validate_json(entry.generated_artifact)
+                    report.type_annotations.append(ann)
+                    working_source = apply_type_annotations(working_source, [ann])
+                    report.skipped_functions += 1
+                    logger.debug("[cache] type hit for %s", func.name)
+                else:
+                    still_need_types.append(func)
+            funcs_needing_types = still_need_types
+
+        if cfg.cache.cache_enabled and (funcs_needing_docs or funcs_needing_types):
+            logger.info(
+                "[cache] %d cache hits; %d doc + %d type functions still need LLM",
+                report.skipped_functions,
+                len(funcs_needing_docs),
+                len(funcs_needing_types),
+            )
+
     # ── Step 4: DSPy modules (batched, local Qwen Coder) ──
     # Only spin up the LLM connection if there's actual work to do.
     has_doc_work = (
         funcs_needing_docs
         or classes_needing_docs
-        or (cfg.docstring_all_modules and not module_info.existing_docstring)
+        or (cfg.docstring_all_modules and (not module_info.existing_docstring or force_module_doc))
     )
     has_type_work = bool(funcs_needing_types)
     has_comment_work = "comments" in all_steps and functions
@@ -236,7 +388,7 @@ def run_pipeline(
 
     if "docstrings" in all_steps:
         # Module docstring (1 call max)
-        if cfg.docstring_all_modules and not module_info.existing_docstring:
+        if cfg.docstring_all_modules and (not module_info.existing_docstring or force_module_doc):
             logger.info("[docstrings] Generating module docstring")
             mod_gen = ModuleDocstringGenerator()
             try:
@@ -306,6 +458,13 @@ def run_pipeline(
                         report.docstrings.extend(docs)
                         # Apply immediately (streaming) — bottom-up order preserved by rewriter
                         working_source = apply_docstrings(working_source, docs)
+                        # Write to cache
+                        if cfg.cache.cache_enabled:
+                            for doc in docs:
+                                fm = next((f for f in func_batch if f.name == doc.function_name), None)
+                                if fm:
+                                    _write_doc_cache(fm, doc, working_source, project_root,
+                                                     model_fp, cfg)
                         logger.info(
                             "[docstrings] Batch %d/%d: %d docstrings applied",
                             i + 1,
@@ -337,6 +496,9 @@ def run_pipeline(
                                 )
                                 report.docstrings.append(doc)
                                 working_source = apply_docstrings(working_source, [doc])
+                                if cfg.cache.cache_enabled:
+                                    _write_doc_cache(func, doc, working_source, project_root,
+                                                     model_fp, cfg)
                             except Exception:
                                 logger.warning(
                                     "[docstrings] Skipping %s after both batch and solo failed",
@@ -365,6 +527,9 @@ def run_pipeline(
                         )
                         report.docstrings.append(doc)
                         working_source = apply_docstrings(working_source, [doc])
+                        if cfg.cache.cache_enabled:
+                            _write_doc_cache(func, doc, working_source, project_root,
+                                             model_fp, cfg)
                     except Exception:
                         logger.exception("[docstrings] Failed for %s", func.name)
 
@@ -409,6 +574,13 @@ def run_pipeline(
                     report.type_annotations.extend(anns)
                     # Apply immediately (streaming)
                     working_source = apply_type_annotations(working_source, anns)
+                    # Write to cache
+                    if cfg.cache.cache_enabled:
+                        for ann in anns:
+                            fm = next((f for f in func_batch if f.name == ann.function_name), None)
+                            if fm:
+                                _write_type_cache(fm, ann, working_source, project_root,
+                                                  model_fp, cfg)
                     logger.info(
                         "[types] Batch %d/%d: %d annotations applied", i + 1, len(batches), len(anns)
                     )
@@ -434,6 +606,9 @@ def run_pipeline(
                             )
                             report.type_annotations.append(ann)
                             working_source = apply_type_annotations(working_source, [ann])
+                            if cfg.cache.cache_enabled:
+                                _write_type_cache(func, ann, working_source, project_root,
+                                                  model_fp, cfg)
                         except Exception:
                             logger.warning(
                                 "[types] Skipping %s after both batch and solo failed", func.name
@@ -459,6 +634,8 @@ def run_pipeline(
                     )
                     report.type_annotations.append(ann)
                     working_source = apply_type_annotations(working_source, [ann])
+                    if cfg.cache.cache_enabled:
+                        _write_type_cache(func, ann, working_source, project_root, model_fp, cfg)
                 except Exception:
                     logger.exception("[types] Failed for %s", func.name)
 
