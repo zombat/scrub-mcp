@@ -16,7 +16,8 @@ Rule ID scheme:
 
 from __future__ import annotations
 
-from importlib.metadata import PackageNotFoundError, version as pkg_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as pkg_version
 
 SARIF_SCHEMA = (
     "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/"
@@ -90,19 +91,16 @@ def _rule_descriptor(rule_id: str) -> dict:
             "helpUri": r["helpUri"],
         }
     if rule_id.startswith("SCRUB-SEC-"):
-        test_id = rule_id[len("SCRUB-SEC-"):]
+        test_id = rule_id[len("SCRUB-SEC-") :]
         return {
             "id": rule_id,
             "name": f"BanditFinding{test_id}",
             "shortDescription": {"text": f"Bandit security finding: {test_id}"},
             "defaultConfiguration": {"level": "warning"},
-            "helpUri": (
-                f"https://bandit.readthedocs.io/en/latest/plugins/"
-                f"{test_id.lower()}.html"
-            ),
+            "helpUri": (f"https://bandit.readthedocs.io/en/latest/plugins/{test_id.lower()}.html"),
         }
     if rule_id.startswith("SCRUB-VULN-"):
-        vuln_id = rule_id[len("SCRUB-VULN-"):]
+        vuln_id = rule_id[len("SCRUB-VULN-") :]
         return {
             "id": rule_id,
             "name": f"Vulnerability{vuln_id.replace('-', '_')}",
@@ -168,12 +166,14 @@ def to_sarif(violations: list[dict], tool_version: str | None = None) -> dict:
         if fn:
             location["logicalLocations"] = [{"name": fn, "kind": "function"}]
 
-        results.append({
-            "ruleId": v.get("rule_id", "SCRUB-UNKNOWN"),
-            "level": v.get("level", "warning"),
-            "message": {"text": v.get("message", "")},
-            "locations": [location],
-        })
+        results.append(
+            {
+                "ruleId": v.get("rule_id", "SCRUB-UNKNOWN"),
+                "level": v.get("level", "warning"),
+                "message": {"text": v.get("message", "")},
+                "locations": [location],
+            }
+        )
 
     return {
         "$schema": SARIF_SCHEMA,

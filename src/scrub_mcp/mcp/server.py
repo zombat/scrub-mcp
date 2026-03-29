@@ -468,6 +468,14 @@ async def list_tools() -> list[Tool]:
                         "description": "Include pip freeze output for exact installed versions. Default: true.",
                         "default": True,
                     },
+                    "output_file": {
+                        "type": "string",
+                        "description": (
+                            "Write SBOM JSON to this path. "
+                            "Default: sbom.{format}.json in the project directory. "
+                            "Pass empty string to skip writing to disk."
+                        ),
+                    },
                 },
             },
         ),
@@ -1593,11 +1601,13 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             project_dir = Path(arguments.get("project_dir", "."))
             sbom_format = arguments.get("format", "cyclonedx")
             include_pip = arguments.get("include_pip", True)
+            output_file = arguments.get("output_file", None)
 
             report = generate_sbom(
                 project_dir=project_dir,
                 format=sbom_format,
                 include_pip=include_pip,
+                output_file=output_file,
             )
 
             return [

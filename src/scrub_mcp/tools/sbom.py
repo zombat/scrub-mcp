@@ -135,6 +135,7 @@ def generate_sbom(
     include_pip: bool = True,
     tool_name: str = "dspy-code-hygiene",
     tool_version: str = "0.1.0",
+    output_file: str | Path | None = None,
 ) -> SBOMReport:
     """Generate a complete SBOM from all available sources.
 
@@ -144,6 +145,9 @@ def generate_sbom(
         include_pip: Include pip freeze output (most accurate).
         tool_name: Name of the generating tool.
         tool_version: Version of the generating tool.
+        output_file: Write the SBOM JSON to this path. Defaults to
+            ``sbom.cyclonedx.json`` or ``sbom.spdx.json`` in *project_dir*.
+            Pass an empty string to skip writing.
 
     Returns:
         SBOMReport with components and formatted output.
@@ -194,12 +198,20 @@ def generate_sbom(
     else:
         output = _format_cyclonedx(components, tool_name, tool_version)
 
-    return SBOMReport(
+    report = SBOMReport(
         format=format,
         component_count=len(components),
         components=components,
         output_json=output,
     )
+
+    # Write to disk
+    if output_file != "":
+        dest = Path(output_file) if output_file else project / f"sbom.{format}.json"
+        dest.write_text(output, encoding="utf-8")
+        logger.info("[sbom] Wrote %s (%d components)", dest, len(components))
+
+    return report
 
 
 # ── CycloneDX 1.5 formatter ──
