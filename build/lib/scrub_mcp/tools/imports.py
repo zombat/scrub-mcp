@@ -33,6 +33,7 @@ def analyze_imports_deterministic(source: str) -> ImportOptResult:
 
     Returns:
         ImportOptResult with unused, missing (AST-inferred), and sorted source.
+
     """
     tree = ast.parse(source)
 
@@ -65,7 +66,8 @@ def analyze_imports_deterministic(source: str) -> ImportOptResult:
 
     # Unused: imported but never referenced
     unused = {
-        name: stmt for name, stmt in imported_names.items()
+        name: stmt
+        for name, stmt in imported_names.items()
         if name not in used_names and name != "__future__"
     }
 
@@ -86,9 +88,7 @@ def fix_imports_ruff(source: str) -> tuple[str, int]:
 
     Returns (fixed_source, count_of_fixes).
     """
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".py", delete=False, encoding="utf-8"
-    ) as tmp:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, encoding="utf-8") as tmp:
         tmp.write(source)
         tmp_path = Path(tmp.name)
 
@@ -96,9 +96,13 @@ def fix_imports_ruff(source: str) -> tuple[str, int]:
         # Remove unused imports (F401) and sort (I)
         result = subprocess.run(
             [
-                "ruff", "check", "--fix",
-                "--select", "F401,I",
-                "--line-length", "100",
+                "ruff",
+                "check",
+                "--fix",
+                "--select",
+                "F401,I",
+                "--line-length",
+                "100",
                 str(tmp_path),
             ],
             capture_output=True,
@@ -109,8 +113,7 @@ def fix_imports_ruff(source: str) -> tuple[str, int]:
 
         # Count fixes from output
         fix_count = sum(
-            1 for line in result.stdout.splitlines()
-            if "F401" in line or "I001" in line
+            1 for line in result.stdout.splitlines() if "F401" in line or "I001" in line
         )
 
         return fixed, fix_count
@@ -122,7 +125,7 @@ def fix_imports_ruff(source: str) -> tuple[str, int]:
 def _is_import_context(node: ast.Name, import_nodes: list[ast.AST]) -> bool:
     """Check if a Name node is part of an import statement."""
     for imp in import_nodes:
-        if hasattr(imp, 'lineno') and hasattr(node, 'lineno'):
+        if hasattr(imp, "lineno") and hasattr(node, "lineno"):
             if imp.lineno == node.lineno:
                 return True
     return False

@@ -43,6 +43,7 @@ class ComplexityReducer(dspy.Module):
     """
 
     def __init__(self) -> None:
+        """Initializes the SecurityRemediationAdvisor with a ChainOfThought instance for security triage and a set of common false positives."""
         super().__init__()
         self.analyze = dspy.ChainOfThought(ComplexityAnalysisSignature)
 
@@ -53,6 +54,22 @@ class ComplexityReducer(dspy.Module):
         cyclomatic_complexity: int = 1,
         line_count: int = 0,
     ) -> str:
+        """forward(self, test_id: str, issue_description: str, flagged_code: str, surrounding_context: str, file_context: str, severity: str, test_name: str) -> SecurityTriage
+
+        Triage a security issue based on the provided details.
+
+        Args:
+            test_id (str): The unique identifier for the test.
+            issue_description (str): A description of the security issue.
+            flagged_code (str): The code that triggered the security issue.
+            surrounding_context (str): The surrounding code context.
+            file_context (str): The file context where the issue occurred.
+            severity (str): The severity level of the issue.
+            test_name (str): The name of the test.
+
+        Returns:
+            SecurityTriage: An instance of SecurityTriage containing the triage results.
+        """
         result = self.analyze(
             function_signature=function_signature,
             function_body=function_body[:3000],
@@ -69,6 +86,7 @@ class TestGenerator(dspy.Module):
     """Generate pytest test stubs for a single function."""
 
     def __init__(self) -> None:
+        """Initializes the SecurityRemediationAdvisor with a ChainOfThought instance for security triage and a set of common false positives."""
         super().__init__()
         self.generate = dspy.ChainOfThought(TestGenerationSignature)
 
@@ -79,6 +97,22 @@ class TestGenerator(dspy.Module):
         docstring: str = "",
         parent_class: str = "",
     ) -> str:
+        """forward(self, test_id: str, issue_description: str, flagged_code: str, surrounding_context: str, file_context: str, severity: str, test_name: str) -> SecurityTriage
+
+        Triage a security issue based on the provided details.
+
+        Args:
+            test_id (str): The unique identifier for the test.
+            issue_description (str): A description of the security issue.
+            flagged_code (str): The code that triggered the security issue.
+            surrounding_context (str): The surrounding code context.
+            file_context (str): The file context where the issue occurred.
+            severity (str): The severity level of the issue.
+            test_name (str): The name of the test.
+
+        Returns:
+            SecurityTriage: An instance of SecurityTriage containing the triage results.
+        """
         result = self.generate(
             function_signature=function_signature,
             function_body=function_body,
@@ -96,10 +130,27 @@ class BatchTestGenerator(dspy.Module):
     """Generate pytest stubs for multiple functions in one LLM call."""
 
     def __init__(self) -> None:
+        """Initializes the SecurityRemediationAdvisor with a ChainOfThought instance for security triage and a set of common false positives."""
         super().__init__()
         self.generate = dspy.ChainOfThought(BatchTestGenerationSignature)
 
     def forward(self, functions_json: str) -> str:
+        """forward(self, test_id: str, issue_description: str, flagged_code: str, surrounding_context: str, file_context: str, severity: str, test_name: str) -> SecurityTriage
+
+        Triage a security issue based on the provided details.
+
+        Args:
+            test_id (str): The unique identifier for the test.
+            issue_description (str): A description of the security issue.
+            flagged_code (str): The code that triggered the security issue.
+            surrounding_context (str): The surrounding code context.
+            file_context (str): The file context where the issue occurred.
+            severity (str): The severity level of the issue.
+            test_name (str): The name of the test.
+
+        Returns:
+            SecurityTriage: An instance of SecurityTriage containing the triage results.
+        """
         result = self.generate(
             functions_json=functions_json,
             module_path="",
@@ -117,10 +168,27 @@ class ExtractFunctionAdvisor(dspy.Module):
     """Identify code blocks that should be extracted into separate functions."""
 
     def __init__(self) -> None:
+        """Initializes the SecurityRemediationAdvisor with a ChainOfThought instance for security triage and a set of common false positives."""
         super().__init__()
         self.extract = dspy.ChainOfThought(ExtractFunctionSignature)
 
     def forward(self, function_signature: str, function_body: str) -> str:
+        """forward(self, test_id: str, issue_description: str, flagged_code: str, surrounding_context: str, file_context: str, severity: str, test_name: str) -> SecurityTriage
+
+        Triage a security issue based on the provided details.
+
+        Args:
+            test_id (str): The unique identifier for the test.
+            issue_description (str): A description of the security issue.
+            flagged_code (str): The code that triggered the security issue.
+            surrounding_context (str): The surrounding code context.
+            file_context (str): The file context where the issue occurred.
+            severity (str): The severity level of the issue.
+            test_name (str): The name of the test.
+
+        Returns:
+            SecurityTriage: An instance of SecurityTriage containing the triage results.
+        """
         result = self.extract(
             function_signature=function_signature,
             function_body=function_body[:3000],
@@ -132,10 +200,27 @@ class RenameAdvisor(dspy.Module):
     """Suggest better names for poorly named variables and functions."""
 
     def __init__(self) -> None:
+        """Initializes the SecurityRemediationAdvisor with a ChainOfThought instance for security triage and a set of common false positives."""
         super().__init__()
         self.rename = dspy.ChainOfThought(RenameSuggestionSignature)
 
     def forward(self, code_block: str, context: str = "") -> str:
+        """forward(self, test_id: str, issue_description: str, flagged_code: str, surrounding_context: str, file_context: str, severity: str, test_name: str) -> SecurityTriage
+
+        Triage a security issue based on the provided details.
+
+        Args:
+            test_id (str): The unique identifier for the test.
+            issue_description (str): A description of the security issue.
+            flagged_code (str): The code that triggered the security issue.
+            surrounding_context (str): The surrounding code context.
+            file_context (str): The file context where the issue occurred.
+            severity (str): The severity level of the issue.
+            test_name (str): The name of the test.
+
+        Returns:
+            SecurityTriage: An instance of SecurityTriage containing the triage results.
+        """
         result = self.rename(
             code_block=code_block[:3000],
             context=context,
@@ -152,10 +237,27 @@ class DeadCodeDetector(dspy.Module):
     """
 
     def __init__(self) -> None:
+        """Initializes the SecurityRemediationAdvisor with a ChainOfThought instance for security triage and a set of common false positives."""
         super().__init__()
         self.detect = dspy.ChainOfThought(DeadCodeSignature)
 
     def forward(self, source: str) -> list[dict]:
+        """forward(self, test_id: str, issue_description: str, flagged_code: str, surrounding_context: str, file_context: str, severity: str, test_name: str) -> SecurityTriage
+
+        Triage a security issue based on the provided details.
+
+        Args:
+            test_id (str): The unique identifier for the test.
+            issue_description (str): A description of the security issue.
+            flagged_code (str): The code that triggered the security issue.
+            surrounding_context (str): The surrounding code context.
+            file_context (str): The file context where the issue occurred.
+            severity (str): The severity level of the issue.
+            test_name (str): The name of the test.
+
+        Returns:
+            SecurityTriage: An instance of SecurityTriage containing the triage results.
+        """
         result = self.detect(source_code=source[:5000])
 
         try:
@@ -179,10 +281,27 @@ class MissingImportInferrer(dspy.Module):
     """
 
     def __init__(self) -> None:
+        """Initializes the SecurityRemediationAdvisor with a ChainOfThought instance for security triage and a set of common false positives."""
         super().__init__()
         self.infer = dspy.ChainOfThought(MissingImportSignature)
 
     def forward(self, source_code: str, existing_imports: str = "") -> str:
+        """forward(self, test_id: str, issue_description: str, flagged_code: str, surrounding_context: str, file_context: str, severity: str, test_name: str) -> SecurityTriage
+
+        Triage a security issue based on the provided details.
+
+        Args:
+            test_id (str): The unique identifier for the test.
+            issue_description (str): A description of the security issue.
+            flagged_code (str): The code that triggered the security issue.
+            surrounding_context (str): The surrounding code context.
+            file_context (str): The file context where the issue occurred.
+            severity (str): The severity level of the issue.
+            test_name (str): The name of the test.
+
+        Returns:
+            SecurityTriage: An instance of SecurityTriage containing the triage results.
+        """
         result = self.infer(
             source_code=source_code[:5000],
             existing_imports=existing_imports,
@@ -205,10 +324,11 @@ class SecurityRemediationAdvisor(dspy.Module):
     """
 
     def __init__(self) -> None:
+        """Initializes the SecurityRemediationAdvisor with a ChainOfThought instance for security triage and a set of common false positives."""
         super().__init__()
         from scrub_mcp.modules.coding_signatures import (
-            SecurityTriageSignature,
             _COMMON_FALSE_POSITIVES,
+            SecurityTriageSignature,
         )
 
         self.triage = dspy.ChainOfThought(SecurityTriageSignature)
@@ -223,7 +343,23 @@ class SecurityRemediationAdvisor(dspy.Module):
         file_context: str = "",
         severity: str = "LOW",
         test_name: str = "",
-    ) -> "SecurityTriage":
+    ) -> SecurityTriage:
+        """forward(self, test_id: str, issue_description: str, flagged_code: str, surrounding_context: str, file_context: str, severity: str, test_name: str) -> SecurityTriage
+
+        Triage a security issue based on the provided details.
+
+        Args:
+            test_id (str): The unique identifier for the test.
+            issue_description (str): A description of the security issue.
+            flagged_code (str): The code that triggered the security issue.
+            surrounding_context (str): The surrounding code context.
+            file_context (str): The file context where the issue occurred.
+            severity (str): The severity level of the issue.
+            test_name (str): The name of the test.
+
+        Returns:
+            SecurityTriage: An instance of SecurityTriage containing the triage results.
+        """
         from scrub_mcp.models import SecurityTriage
 
         # Look up known false positive hint

@@ -29,15 +29,14 @@ def analyze_complexity(func: FunctionInfo) -> FunctionComplexity:
 
     Returns:
         FunctionComplexity with all deterministic metrics.
+
     """
     try:
         tree = ast.parse(func.body)
     except SyntaxError:
         # Body might not parse standalone (indentation issues)
         # Wrap in a function to make it parseable
-        wrapped = f"def _wrapper():\n" + "\n".join(
-            f"    {line}" for line in func.body.splitlines()
-        )
+        wrapped = "def _wrapper():\n" + "\n".join(f"    {line}" for line in func.body.splitlines())
         try:
             tree = ast.parse(wrapped)
         except SyntaxError:
@@ -75,6 +74,7 @@ def analyze_file_complexity(
 
     Returns:
         ComplexityReport with per-function metrics and file-level summary.
+
     """
     t = thresholds or {
         "cyclomatic": 10,
@@ -97,7 +97,10 @@ def analyze_file_complexity(
         flagged_count=len(flagged),
         avg_cyclomatic=sum(r.cyclomatic_complexity for r in results) / max(len(results), 1),
         avg_cognitive=sum(r.cognitive_complexity for r in results) / max(len(results), 1),
-        hotspots=[r.function_name for r in sorted(flagged, key=lambda r: r.cyclomatic_complexity, reverse=True)[:5]],
+        hotspots=[
+            r.function_name
+            for r in sorted(flagged, key=lambda r: r.cyclomatic_complexity, reverse=True)[:5]
+        ],
     )
 
 
@@ -156,8 +159,19 @@ def _max_nesting_depth(tree: ast.AST, depth: int = 0) -> int:
     max_depth = depth
 
     for node in ast.iter_child_nodes(tree):
-        if isinstance(node, (ast.If, ast.For, ast.While, ast.AsyncFor,
-                             ast.With, ast.AsyncWith, ast.Try, ast.ExceptHandler)):
+        if isinstance(
+            node,
+            (
+                ast.If,
+                ast.For,
+                ast.While,
+                ast.AsyncFor,
+                ast.With,
+                ast.AsyncWith,
+                ast.Try,
+                ast.ExceptHandler,
+            ),
+        ):
             child_depth = _max_nesting_depth(node, depth + 1)
             max_depth = max(max_depth, child_depth)
         else:

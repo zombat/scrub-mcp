@@ -7,12 +7,18 @@ Pre-filter chain (deterministic, no LLM):
 
 If any check fails, the function gets sent to the DSPy module.
 If all pass, the function is skipped entirely (zero LLM tokens).
+
+File-level checks (1.3 optimization):
+  _pydocstyle_file_check and _pyright_file_check run the tool ONCE on the
+  real source file and map diagnostics to function line ranges. This replaces
+  the old per-function stub approach (N subprocesses → 1 subprocess).
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -49,6 +55,7 @@ def needs_docstring(func: FunctionInfo, use_pydocstyle: bool = True) -> bool:
 
     Returns:
         True if the function needs a docstring generated or rewritten.
+
     """
     # Tier 1: no docstring at all
     if func.existing_docstring is None:
@@ -62,12 +69,11 @@ def needs_docstring(func: FunctionInfo, use_pydocstyle: bool = True) -> bool:
 
 
 def _pydocstyle_fails(func: FunctionInfo) -> bool:
-    """Run pydocstyle on a single function to check Google style compliance.
+    """Run pydocstyle on a single function stub (legacy per-function path).
 
-    Returns True if the docstring has violations (meaning we should regenerate).
-    Returns False if the docstring passes or if pydocstyle is unavailable.
+    Prefer _pydocstyle_file_check when processing a full source file.
+    Returns True if the docstring has violations.
     """
-    # Build a minimal Python file with just this function
     stub = f"{func.signature}:\n"
     if func.existing_docstring:
         stub += f'    """{func.existing_docstring}"""\n'
@@ -84,7 +90,7 @@ def _pydocstyle_fails(func: FunctionInfo) -> bool:
             [
                 "pydocstyle",
                 "--convention=google",
-                "--add-ignore=D100",  # module docstring not relevant here
+                "--add-ignore=D100",
                 str(tmp_path),
             ],
             capture_output=True,
@@ -94,11 +100,9 @@ def _pydocstyle_fails(func: FunctionInfo) -> bool:
 
         tmp_path.unlink(missing_ok=True)
 
-        # pydocstyle returns exit code 0 if no violations
         if result.returncode == 0:
             return False
 
-        # Has violations: log them and flag for regeneration
         violations = [
             line.strip()
             for line in result.stdout.splitlines()
@@ -126,6 +130,73 @@ def _pydocstyle_fails(func: FunctionInfo) -> bool:
         return False
 
 
+def _pydocstyle_file_check(
+    source: str,
+    functions: list[FunctionInfo],
+    file_path: str | None = None,
+) -> set[str]:
+    """Run pydocstyle once on the full source file. Return names of functions with violations.
+
+    One subprocess regardless of function count. Full module context preserved
+    so import-dependent type hints don't cause false positives.
+    """
+    if not functions:
+        return set()
+
+    tmp_path: Path | None = None
+    try:
+        if file_path and Path(file_path).is_file():
+            target = file_path
+            cleanup = False
+        else:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".py", delete=False, encoding="utf-8"
+            ) as tmp:
+                tmp.write(source)
+                tmp_path = Path(tmp.name)
+            target = str(tmp_path)
+            cleanup = True
+
+        result = subprocess.run(
+            ["pydocstyle", "--convention=google", "--add-ignore=D100", target],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        if cleanup and tmp_path:
+            tmp_path.unlink(missing_ok=True)
+
+        if result.returncode == 0:
+            return set()
+
+        # pydocstyle output lines alternate: "path:line ..." then "    Dxxx: message"
+        # Extract line numbers from the path lines.
+        failing: set[str] = set()
+        _LINE_RE = re.compile(r":(\d+)\s+")
+        for line in result.stdout.splitlines():
+            m = _LINE_RE.search(line)
+            if not m:
+                continue
+            diag_line = int(m.group(1))
+            for func in functions:
+                if func.line_start <= diag_line <= func.line_end:
+                    failing.add(func.name)
+                    break
+
+        return failing
+
+    except FileNotFoundError:
+        logger.debug("[pydocstyle] Not installed, skipping file-level check")
+        return set()
+    except subprocess.TimeoutExpired:
+        logger.warning("[pydocstyle] Timed out on file-level check")
+        return set()
+    except Exception:
+        logger.debug("[pydocstyle] File-level check failed, falling back to empty set")
+        return set()
+
+
 # ── Type annotation pre-filters ──
 
 
@@ -142,6 +213,7 @@ def needs_type_annotations(func: FunctionInfo, use_pyright: bool = True) -> bool
 
     Returns:
         True if the function needs type annotations generated or fixed.
+
     """
     sig_params = _extract_param_names(func.signature)
 
@@ -162,12 +234,11 @@ def needs_type_annotations(func: FunctionInfo, use_pyright: bool = True) -> bool
 
 
 def _pyright_fails(func: FunctionInfo) -> bool:
-    """Run pyright on a single function to validate existing type annotations.
+    """Run pyright on a single function stub (legacy per-function path).
 
-    Returns True if pyright reports type errors (meaning we should re-infer).
-    Returns False if types are clean or if pyright is unavailable.
+    Prefer _pyright_file_check when processing a full source file.
+    Returns True if pyright reports type errors.
     """
-    # Build a minimal file with the function and necessary imports
     stub = "from __future__ import annotations\nfrom typing import Any\n\n"
     stub += f"{func.signature}:\n"
     if func.existing_docstring:
@@ -182,11 +253,7 @@ def _pyright_fails(func: FunctionInfo) -> bool:
             tmp_path = Path(tmp.name)
 
         result = subprocess.run(
-            [
-                "pyright",
-                "--outputjson",
-                str(tmp_path),
-            ],
+            ["pyright", "--outputjson", str(tmp_path)],
             capture_output=True,
             text=True,
             timeout=30,
@@ -194,17 +261,13 @@ def _pyright_fails(func: FunctionInfo) -> bool:
 
         tmp_path.unlink(missing_ok=True)
 
-        # Parse pyright JSON output
         try:
             report = json.loads(result.stdout)
         except json.JSONDecodeError:
             return False
 
         diagnostics = report.get("generalDiagnostics", [])
-        type_errors = [
-            d for d in diagnostics
-            if d.get("severity", "") == "error"
-        ]
+        type_errors = [d for d in diagnostics if d.get("severity", "") == "error"]
 
         if type_errors:
             logger.debug(
@@ -228,6 +291,84 @@ def _pyright_fails(func: FunctionInfo) -> bool:
         return False
 
 
+def _pyright_file_check(
+    source: str,
+    functions: list[FunctionInfo],
+    file_path: str | None = None,
+) -> set[str]:
+    """Run pyright once on the full source file. Return names of functions with type errors.
+
+    One subprocess regardless of function count. Full module context preserved
+    so import-dependent type hints don't cause false positives.
+    """
+    if not functions:
+        return set()
+
+    tmp_path: Path | None = None
+    try:
+        if file_path and Path(file_path).is_file():
+            target = file_path
+            cleanup = False
+        else:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".py", delete=False, encoding="utf-8"
+            ) as tmp:
+                tmp.write(source)
+                tmp_path = Path(tmp.name)
+            target = str(tmp_path)
+            cleanup = True
+
+        result = subprocess.run(
+            ["pyright", "--outputjson", target],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        if cleanup and tmp_path:
+            tmp_path.unlink(missing_ok=True)
+
+        try:
+            report = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            return set()
+
+        diagnostics = report.get("generalDiagnostics", [])
+        failing: set[str] = set()
+
+        for diag in diagnostics:
+            if diag.get("severity", "") != "error":
+                continue
+            # pyright line numbers are 0-based in the JSON range
+            diag_line = diag.get("range", {}).get("start", {}).get("line", -1) + 1
+            if diag_line < 1:
+                continue
+            for func in functions:
+                if func.line_start <= diag_line <= func.line_end:
+                    failing.add(func.name)
+                    logger.debug(
+                        "[pyright] %s (L%d-%d) has error on L%d: %s",
+                        func.name,
+                        func.line_start,
+                        func.line_end,
+                        diag_line,
+                        diag.get("message", "")[:80],
+                    )
+                    break
+
+        return failing
+
+    except FileNotFoundError:
+        logger.debug("[pyright] Not installed, skipping file-level check")
+        return set()
+    except subprocess.TimeoutExpired:
+        logger.warning("[pyright] Timed out on file-level check")
+        return set()
+    except Exception:
+        logger.debug("[pyright] File-level check failed, falling back to empty set")
+        return set()
+
+
 # ── Class pre-filter ──
 
 
@@ -240,6 +381,7 @@ def needs_class_docstring(cls: ClassInfo, use_pydocstyle: bool = True) -> bool:
 
     Returns:
         True if the class needs a docstring generated or rewritten.
+
     """
     if cls.existing_docstring is None:
         return True

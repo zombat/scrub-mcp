@@ -38,19 +38,21 @@ def run_bandit(
 
     Returns:
         BanditReport with findings and summary.
+
     """
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".py", delete=False, encoding="utf-8"
-    ) as tmp:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, encoding="utf-8") as tmp:
         tmp.write(source)
         tmp_path = Path(tmp.name)
 
     try:
         cmd = [
             "bandit",
-            "--format", "json",
-            "--severity-level", severity_threshold.upper()[0],
-            "--confidence-level", confidence_threshold.upper()[0],
+            "--format",
+            "json",
+            "--severity-level",
+            severity_threshold.upper()[0],
+            "--confidence-level",
+            confidence_threshold.upper()[0],
         ]
 
         if skips:
@@ -145,6 +147,7 @@ def run_bandit_on_file(
 
     Returns:
         BanditReport with findings and summary.
+
     """
     source = file_path.read_text(encoding="utf-8")
     report = run_bandit(source, severity_threshold, confidence_threshold, skips)
