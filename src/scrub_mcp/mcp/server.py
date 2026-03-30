@@ -1907,6 +1907,95 @@ def write_agent_instructions(target_dir: Path) -> Path:
     return out
 
 
+def _find_python() -> str:
+    """Return the absolute path to the running Python interpreter."""
+    import sys
+
+    return sys.executable
+
+
+def _scrub_server_entry() -> dict:
+    """Return the MCP server config dict for S.C.R.U.B."""
+    return {
+        "command": _find_python(),
+        "args": ["-m", "scrub_mcp.mcp.server"],
+    }
+
+
+def install_mcp(target: str) -> Path:
+    """Create or update the MCP config file for the given *target*.
+
+    Supported targets:
+        claude-code     → .mcp.json  (project root)
+        cursor          → .cursor/mcp.json  (project root)
+        github-copilot  → .vscode/mcp.json
+        copilot-cli     → ~/.copilot/mcp-config.json  (global)
+        gemini          → ~/.gemini/settings.json  (global)
+        windsurf        → ~/.codeium/windsurf/mcp_config.json  (global)
+        cline           → .vscode/mcp.json  (same file as github-copilot)
+        zed             → ~/.config/zed/settings.json  (global, under context_servers)
+
+    Merges the S.C.R.U.B. server entry into existing config if the file
+    already exists. Never overwrites other servers.
+
+    Returns the path to the written config file.
+
+    """
+    import os
+
+    entry = _scrub_server_entry()
+    home = os.path.expanduser("~")
+
+    targets: dict[str, Path] = {
+        "claude-code": Path(".mcp.json"),
+        "cursor": Path(".cursor") / "mcp.json",
+        "github-copilot": Path(".vscode") / "mcp.json",
+        "copilot-cli": Path(home) / ".copilot" / "mcp-config.json",
+        "gemini": Path(home) / ".gemini" / "settings.json",
+        "windsurf": Path(home) / ".codeium" / "windsurf" / "mcp_config.json",
+        "cline": Path(".vscode") / "mcp.json",
+        "zed": Path(home) / ".config" / "zed" / "settings.json",
+    }
+
+    if target not in targets:
+        raise ValueError(
+            f"Unknown target {target!r}. "
+            f"Choose from: {', '.join(sorted(targets))}"
+        )
+
+    config_path = targets[target]
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Load existing config or start fresh.
+    existing: dict = {}
+    if config_path.exists():
+        try:
+            existing = json.loads(config_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # Each client uses a slightly different schema.
+    if target == "zed":
+        # Zed: {"context_servers": {"scrub": {"command": {"path": ..., "args": [...]}}}}
+        ctx = existing.setdefault("context_servers", {})
+        ctx["scrub"] = {"command": {"path": entry["command"], "args": entry["args"]}}
+    elif target in ("github-copilot", "cline"):
+        # VS Code Copilot / Cline: {"servers": {"scrub": {...}}}
+        servers = existing.setdefault("servers", {})
+        servers["scrub"] = entry
+    elif target == "gemini":
+        # Gemini Code Assist: {"mcpServers": {"scrub": {...}}}
+        servers = existing.setdefault("mcpServers", {})
+        servers["scrub"] = entry
+    else:
+        # claude-code, cursor, copilot-cli, windsurf: {"mcpServers": {"scrub": {...}}}
+        servers = existing.setdefault("mcpServers", {})
+        servers["scrub"] = entry
+
+    config_path.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
+    return config_path.resolve()
+
+
 if __name__ == "__main__":
     import argparse
     import asyncio
@@ -1921,11 +2010,32 @@ if __name__ == "__main__":
         default=None,
         help="Write AGENTS.md into DIR (default: current directory) and exit.",
     )
+    parser.add_argument(
+        "--install-mcp",
+        metavar="TARGET",
+        choices=[
+            "claude-code", "cursor", "github-copilot", "copilot-cli",
+            "gemini", "windsurf", "cline", "zed",
+        ],
+        default=None,
+        help=(
+            "Create or update the MCP config file for the given client and exit. "
+            "Targets: claude-code (.mcp.json), cursor (.cursor/mcp.json), "
+            "github-copilot (.vscode/mcp.json), copilot-cli (~/.copilot/mcp-config.json), "
+            "gemini (~/.gemini/settings.json), windsurf (~/.codeium/windsurf/mcp_config.json), "
+            "cline (.vscode/mcp.json), zed (~/.config/zed/settings.json)."
+        ),
+    )
     args = parser.parse_args()
 
     if args.agent_instructions is not None:
         out = write_agent_instructions(Path(args.agent_instructions))
         print(f"Written: {out}")
+        sys.exit(0)
+
+    if args.install_mcp is not None:
+        out = install_mcp(args.install_mcp)
+        print(f"MCP config written: {out}")
         sys.exit(0)
 
     logging.basicConfig(level=logging.INFO)

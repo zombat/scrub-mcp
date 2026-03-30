@@ -1,3 +1,6 @@
 .venv
 .claude
+.cursor
+.vscode
+.ruff_cache
 .dspy_cache

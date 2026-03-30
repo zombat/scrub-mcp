@@ -245,7 +245,39 @@ batch_size: 5
 deterministic_prefilter: true
 ```
 
-### Connect to Claude Code
+### Connect to MCP Clients
+
+The `--install-mcp` flag auto-generates or updates the correct MCP config file for your client:
+
+```bash
+# Claude Code — writes .mcp.json in the project root
+python -m scrub_mcp.mcp.server --install-mcp claude-code
+
+# Cursor — writes .cursor/mcp.json in the project root
+python -m scrub_mcp.mcp.server --install-mcp cursor
+
+# GitHub Copilot (VS Code) — writes .vscode/mcp.json
+python -m scrub_mcp.mcp.server --install-mcp github-copilot
+
+# Copilot CLI — writes ~/.copilot/mcp-config.json (global)
+python -m scrub_mcp.mcp.server --install-mcp copilot-cli
+
+# Gemini Code Assist — writes ~/.gemini/settings.json (global)
+python -m scrub_mcp.mcp.server --install-mcp gemini
+
+# Windsurf (Cascade) — writes ~/.codeium/windsurf/mcp_config.json (global)
+python -m scrub_mcp.mcp.server --install-mcp windsurf
+
+# Cline / Roo Code — writes .vscode/mcp.json
+python -m scrub_mcp.mcp.server --install-mcp cline
+
+# Zed — writes ~/.config/zed/settings.json (global)
+python -m scrub_mcp.mcp.server --install-mcp zed
+```
+
+Each command detects the running Python interpreter and merges the S.C.R.U.B. server entry into any existing config without overwriting other servers.
+
+Or configure manually — S.C.R.U.B. speaks MCP over stdio, so any MCP client works:
 
 ```json
 {
@@ -258,9 +290,7 @@ deterministic_prefilter: true
 }
 ```
 
-### Connect to VS Code
-
-Same config. S.C.R.U.B. speaks MCP over stdio. Any MCP client works.
+> **Note:** Zed uses a different schema (`context_servers` with a nested `command` object). Use `--install-mcp zed` to generate the correct format automatically.
 
 ### Drop agent instructions
 
